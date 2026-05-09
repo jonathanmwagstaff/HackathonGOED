@@ -301,25 +301,15 @@
     }
     #card-close:hover { color: #e2e8f0; }
     #card-name-row {
-      display: flex;
-      align-items: center;
-      gap: 7px;
+      text-align: center;
       padding-right: 22px;
     }
-    #card-inline-logo {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 1.5px solid rgba(255,215,0,0.6);
-      background: rgba(10,15,30,0.9);
-      flex-shrink: 0;
-    }
     #card-name {
-      font-size: 0.95rem;
+      font-size: 1rem;
       font-weight: 700;
       color: #ffd700;
       line-height: 1.25;
+      text-align: center;
     }
     .card-row { display: flex; flex-direction: column; gap: 2px; }
     .card-row-pair { display: flex; gap: 10px; }
@@ -343,36 +333,16 @@
       border-top: 1px solid rgba(255,215,0,0.14);
       padding-top: 10px;
     }
-    #crook-logo {
-      position: fixed;
-      display: none;
-      z-index: 15;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-    }
-    #crook-logo.visible { display: flex; }
-    #crook-name {
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 15px;
-      font-weight: 900;
-      color: #ffd700;
-      background: rgba(10,15,30,0.82);
-      padding: 3px 10px;
-      border-radius: 4px;
-      white-space: nowrap;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.9);
-    }
-    #crook-logo img {
-      width: 80px;
-      height: 80px;
+    #card-logo-large {
+      width: 72px;
+      height: 72px;
       border-radius: 50%;
       object-fit: cover;
-      border: 2.5px solid rgba(255,215,0,0.75);
-      background: rgba(10,15,30,0.92);
-      box-shadow: 0 0 28px rgba(255,215,0,0.28), 0 4px 20px rgba(0,0,0,0.6);
+      border: 2px solid rgba(255,215,0,0.6);
+      background: rgba(10,15,30,0.9);
+      box-shadow: 0 0 20px rgba(255,215,0,0.18), 0 3px 12px rgba(0,0,0,0.5);
+      display: block;
+      margin: 0 auto 10px;
     }
     #card-links {
       display: none;
@@ -612,6 +582,7 @@
   <span id="tooltip-name"></span>
 </div>
 <div id="filter-bar">
+  <button class="filter-btn active" id="btn-map-view">Map View</button>
   <span class="filter-label">Filter</span>
   <button class="filter-btn" id="btn-location">Location</button>
   <button class="filter-btn" id="btn-sector">Sector</button>
@@ -632,8 +603,8 @@
 <div id="sector-labels"></div>
 <div id="company-card">
   <button id="card-close">&times;</button>
+  <img id="card-logo-large" src="" alt="">
   <div id="card-name-row">
-    <img id="card-inline-logo" src="" alt="">
     <div id="card-name"></div>
   </div>
   <div class="card-row">
@@ -664,10 +635,6 @@
     </a>
   </div>
   <button id="card-edit-btn" style="display:none">Update / Edit</button>
-</div>
-<div id="crook-logo">
-  <span id="crook-name"></span>
-  <img id="crook-logo-img" src="" alt="Company logo">
 </div>
 <!-- ── Edit / verification modal ───────────────────────────────────────── -->
 <div id="edit-modal-overlay">
@@ -839,6 +806,11 @@
   uniform float secondaryGroupId;  // -1 = no secondary subgroup; else secondary group ID
   uniform float secondaryMode;     // same encoding as selectionMode
   uniform float secondaryRamp;     // 0→1 ramp for secondary subgroup selection
+
+  // Scatter-transition uniforms
+  uniform float scatterStrength;   // 0→1→0 bell curve over the 2-second scatter phase
+  uniform float scatterMode;       // same group encoding: 1=sector,2=stage,3=bucket,4=neighborhood
+  uniform vec3  scatterDirs[8];    // one random 3-D unit direction per group
 
   // Boids flee their cluster's floating label — radius sized to label screen footprint (~150×30 px)
   const float LABEL_REPEL_RADIUS = 35.0;
@@ -1049,6 +1021,14 @@
       velocity -= normalize( dir ) * delta * 5.0 * centralStrength;
     }
 
+    // ── Faint always-on center pull for company boids ──────────────────────
+    if ( isCompany > 0.5 ) {
+      vec3 toCenter = -selfPosition;
+      toCenter.z    = 0.0;
+      float dcenter = length( toCenter );
+      if ( dcenter > 0.1 ) velocity += normalize( toCenter ) * delta * 0.4;
+    }
+
     // ── Flocking + cursor spread + spring repulsion (single neighbour pass) ─
     float flockWeight   = 1.0 - settlingFactor;
     bool  doNeighborhoodRepel = ( appState > 1.5 && appState < 2.5 && isCompany > 0.5 );
@@ -1066,6 +1046,9 @@
 
           vec2 ref = vec2( x + 0.5, y + 0.5 ) / resolution.xy;
           birdPosition = texture2D( texturePosition, ref ).xyz;
+
+          // In filter/scatter states outline boids are invisible — skip them as neighbours
+          if ( appState > 1.5 && texture2D( textureSector, ref ).a < 0.0 ) continue;
 
           dir = birdPosition - selfPosition;
           dist = length( dir );
@@ -1166,6 +1149,38 @@
       float maxDamp = mix( 0.08, 0.28, settlingFactor );
       float dampAmt = ( 1.0 - smoothstep( 0.0, arrivalRadius, distToTgt ) ) * maxDamp;
       velocity *= ( 1.0 - dampAmt );
+    }
+
+    // ── Scatter transition: kick each group in its own random 3D direction ──
+    if ( scatterStrength > 0.001 && isCompany > 0.5 ) {
+      float myGrpId = -1.0;
+      if      ( abs( scatterMode - 1.0 ) < 0.5 ) myGrpId = texture2D( textureSector,       uv ).a;
+      else if ( abs( scatterMode - 2.0 ) < 0.5 ) myGrpId = texture2D( textureStage,        uv ).a;
+      else if ( abs( scatterMode - 3.0 ) < 0.5 ) myGrpId = texture2D( textureBucket,       uv ).a;
+      else if ( abs( scatterMode - 4.0 ) < 0.5 ) myGrpId = texture2D( textureNeighborhood, uv ).a;
+      if ( myGrpId >= 0.0 ) {
+        int sg = int( myGrpId + 0.5 );
+        vec3 sdir = vec3( 0.0 );
+        if      ( sg == 0 ) sdir = scatterDirs[0];
+        else if ( sg == 1 ) sdir = scatterDirs[1];
+        else if ( sg == 2 ) sdir = scatterDirs[2];
+        else if ( sg == 3 ) sdir = scatterDirs[3];
+        else if ( sg == 4 ) sdir = scatterDirs[4];
+        else if ( sg == 5 ) sdir = scatterDirs[5];
+        else if ( sg == 6 ) sdir = scatterDirs[6];
+        else if ( sg == 7 ) sdir = scatterDirs[7];
+        velocity += sdir * scatterStrength * 5.0;
+      }
+    }
+
+    // ── Soft boundary: keep company boids inside Utah's extent ────────────
+    if ( isCompany > 0.5 ) {
+      float distFromOrigin = length( selfPosition.xy );
+      if ( distFromOrigin > 210.0 ) {
+        velocity -= normalize( selfPosition ) * ( distFromOrigin - 210.0 ) * 0.9 * delta;
+      }
+      // Pull Z back to 0 — stronger as scatter fades, gentle while scattering
+      velocity.z -= selfPosition.z * delta * mix( 3.0, 0.6, scatterStrength );
     }
 
     // ── Speed limit (tightens as settling grows; spring state gets own cap) ──
@@ -1285,7 +1300,9 @@
         mySelScale = primaryScale;
       }
     }
-    float boidScale   = ( 1.0 + 0.5 * isCompanyVS * clusterScale ) * mySelScale;
+    float companyScale = ( 1.0 + 0.5 * clusterScale ) * mySelScale;
+    float outlineScale = 1.0 - clusterScale;
+    float boidScale    = mix( outlineScale, companyScale, isCompanyVS );
     vec3 worldPos = pos + tiltedRight * position.x * boidScale + tiltedUp * position.y * boidScale;
 
     z = worldPos.z;
@@ -1408,7 +1425,7 @@
         mySelScaleL = primaryScaleL;
       }
     }
-    float boidScale   = ( 1.0 + 0.5 * isCompanyVS * clusterScale ) * mySelScaleL;
+    float boidScale   = mix( 1.0 - clusterScale, ( 1.0 + 0.5 * clusterScale ) * mySelScaleL, isCompanyVS );
     vec3 worldPos = pos
       + tiltedRight * position.x * boidScale
       + tiltedUp * position.y * boidScale
@@ -1725,6 +1742,59 @@ function applySubgroupSelection( mode, id ) {
   _updateSecondaryFilter();
 }
 
+const SCATTER_MODE_FOR_STATE = {
+  [ APP_STATE.UTAH_SPRINGS ]: 4,
+  [ APP_STATE.STAGE        ]: 2,
+  [ APP_STATE.SECTOR       ]: 1,
+  [ APP_STATE.COMPANY_SIZE ]: 3,
+};
+
+let _scatterRafId = null;
+
+function startScatterThenSetState( targetState ) {
+  if ( _scatterRafId !== null ) { cancelAnimationFrame( _scatterRafId ); _scatterRafId = null; }
+
+  const modeId = SCATTER_MODE_FOR_STATE[ targetState ] ?? 1;
+
+  // Generate 8 random 3D unit directions — one per group
+  const dirs = Array.from( { length: 8 }, () => {
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = ( Math.random() - 0.5 ) * 1.4;    // tilt ±40° into Z
+    return new THREE.Vector3(
+      Math.cos( phi ) * Math.cos( theta ),
+      Math.cos( phi ) * Math.sin( theta ),
+      Math.sin( phi )
+    );
+  } );
+
+  velocityUniforms[ 'scatterMode' ].value = modeId;
+  dirs.forEach( ( d, i ) => velocityUniforms[ 'scatterDirs' ].value[ i ].copy( d ) );
+
+  // Enter TRANSITION state (appState=6): no cluster forces, free flocking
+  currentState      = APP_STATE.TRANSITION;
+  settlingStartTime = null;   // → settlingFactor = 0, boids move freely
+
+  const SCATTER_MS  = 2000;
+  const scatterStart = performance.now();
+
+  function tick() {
+    const t        = Math.min( ( performance.now() - scatterStart ) / SCATTER_MS, 1.0 );
+    const strength = Math.sin( t * Math.PI );        // bell: 0 → peak → 0
+    velocityUniforms[ 'scatterStrength' ].value = strength;
+
+    if ( t >= 1.0 ) {
+      velocityUniforms[ 'scatterStrength' ].value = 0.0;
+      _scatterRafId    = null;
+      settlingStartTime = performance.now();           // restart settling ramp for cluster
+      setAppState( targetState );
+    } else {
+      _scatterRafId = requestAnimationFrame( tick );
+    }
+  }
+
+  _scatterRafId = requestAnimationFrame( tick );
+}
+
 function setAppState( newState ) {
   currentState = newState;
   clearSubgroupSelection();
@@ -1803,10 +1873,6 @@ const neighborhoodWorldPos = NEIGHBORHOODS.map( n => {
   return new THREE.Vector2( x, y );
 } );
 
-// Scene-space anchor for the company logo: the "crook" of Utah's NE notch,
-// visually in the upper-right gap where Wyoming sits on the real map.
-const _crookXY = project( 41.5, -110.3 );
-const CROOK_SCENE_POS = new THREE.Vector3( _crookXY[ 0 ], _crookXY[ 1 ], 0 );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Supabase – company locations
@@ -2204,6 +2270,7 @@ async function init() {
   document.getElementById( 'card-close' ).addEventListener( 'click', hideCompanyCard );
 
   const filterButtons = document.querySelectorAll( '.filter-btn' );
+  const mapViewBtn    = document.getElementById( 'btn-map-view' );
   const filterStateMap = {
     'btn-location':     APP_STATE.UTAH_SPRINGS,
     'btn-sector':       APP_STATE.SECTOR,
@@ -2211,16 +2278,25 @@ async function init() {
     'btn-stage':        APP_STATE.STAGE,
   };
 
+  mapViewBtn.addEventListener( 'click', () => {
+    filterButtons.forEach( b => b.classList.remove( 'active' ) );
+    mapViewBtn.classList.add( 'active' );
+    if ( _scatterRafId !== null ) { cancelAnimationFrame( _scatterRafId ); _scatterRafId = null; velocityUniforms[ 'scatterStrength' ].value = 0.0; }
+    setAppState( APP_STATE.UTAH_MAP );
+  } );
+
   filterButtons.forEach( btn => {
     btn.addEventListener( 'click', () => {
       const newState = filterStateMap[ btn.id ];
+      if ( !newState ) return;
       if ( currentState === newState ) {
         btn.classList.remove( 'active' );
+        mapViewBtn.classList.add( 'active' );
         setAppState( APP_STATE.UTAH_MAP );
       } else {
         filterButtons.forEach( b => b.classList.remove( 'active' ) );
         btn.classList.add( 'active' );
-        setAppState( newState );
+        startScatterThenSetState( newState );
       }
     } );
   } );
@@ -2369,6 +2445,9 @@ function initGPGPU( companies ) {
   velocityUniforms[ 'secondaryGroupId'            ] = { value: -1.0 };
   velocityUniforms[ 'secondaryMode'               ] = { value: 0.0 };
   velocityUniforms[ 'secondaryRamp'               ] = { value: 0.0 };
+  velocityUniforms[ 'scatterStrength'             ] = { value: 0.0 };
+  velocityUniforms[ 'scatterMode'                 ] = { value: 1.0 };
+  velocityUniforms[ 'scatterDirs'                 ] = { value: Array.from( { length: 8 }, () => new THREE.Vector3() ) };
 
   initSectorCentroids( companies );
   initBucketCentroids( companies );
@@ -3140,17 +3219,10 @@ function showCompanyCard( idx ) {
   document.getElementById( 'card-sector'    ).textContent = co.sector        || '—';
   document.getElementById( 'card-headcount' ).textContent = co.employees     || '—';
   document.getElementById( 'card-stage'     ).textContent = co.stage         || '—';
-  document.getElementById( 'crook-name'     ).textContent = co.startup_name;
 
-  const inlineLogoEl = document.getElementById( 'card-inline-logo' );
-  if ( co.logoUrl ) {
-    inlineLogoEl.onerror = () => { inlineLogoEl.style.display = 'none'; };
-    inlineLogoEl.onload  = () => { inlineLogoEl.style.display = ''; };
-    inlineLogoEl.style.display = '';
-    inlineLogoEl.src = co.logoUrl;
-  } else {
-    inlineLogoEl.style.display = 'none';
-  }
+  const largeLogoEl = document.getElementById( 'card-logo-large' );
+  largeLogoEl.onerror = () => { largeLogoEl.src = BEEHIVE_SVG; };
+  largeLogoEl.src = co.logoUrl || BEEHIVE_SVG;
 
   const descEl = document.getElementById( 'card-description' );
   if ( co.description ) {
@@ -3159,10 +3231,6 @@ function showCompanyCard( idx ) {
   } else {
     descEl.style.display = 'none';
   }
-
-  const crookImg = document.getElementById( 'crook-logo-img' );
-  crookImg.onerror = () => { crookImg.src = BEEHIVE_SVG; };
-  crookImg.src = co.logoUrl || BEEHIVE_SVG;
 
   const linksDiv      = document.getElementById( 'card-links' );
   const websiteLink   = document.getElementById( 'card-website-link' );
@@ -3192,13 +3260,11 @@ function showCompanyCard( idx ) {
   editBtn.style.display = co.emailDomain ? '' : 'none';
 
   document.getElementById( 'company-card' ).classList.add( 'visible' );
-  document.getElementById( 'crook-logo'   ).classList.add( 'visible' );
 }
 
 function hideCompanyCard() {
   selectedCompany = -1;
   document.getElementById( 'company-card' ).classList.remove( 'visible' );
-  document.getElementById( 'crook-logo'   ).classList.remove( 'visible' );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3558,14 +3624,6 @@ function animate() {
   }
 
   updateTooltip( mouseClientX, mouseClientY );
-
-  // Keep crook logo pinned to the NE-notch geographic anchor in screen space
-  if ( selectedCompany >= 0 ) {
-    _tmpV3.copy( CROOK_SCENE_POS ).project( camera );
-    const crookEl = document.getElementById( 'crook-logo' );
-    crookEl.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
-    crookEl.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
-  }
 
   renderer.render( scene, camera );
 }

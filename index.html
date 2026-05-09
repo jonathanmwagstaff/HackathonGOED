@@ -239,12 +239,22 @@
   uniform float appState;              // 0=SWARM, 1=UTAH_MAP, 2=UTAH_SPRINGS, 3=STAGE, 4=SECTOR, 5=COMPANY_SIZE, 6=TRANSITION
   uniform sampler2D textureNeighbors;  // UTAH_SPRINGS: 3 fixed geographic neighbor indices per boid (RGB)
   uniform float springRestLength;      // UTAH_SPRINGS: natural spring length (world units)
-  uniform sampler2D textureSector;     // RGB = sector colour, A = sector ID (0–6, −1 = non-company)
-  uniform vec2 sectorCentroids[7];     // world-space centroid per sector, updated from JS each frame
-  uniform sampler2D textureBucket;     // RGB = size-bucket colour, A = bucket ID (0–5, −1 = non-company)
-  uniform vec2 bucketCentroids[6];     // world-space centroid per size bucket, updated from JS each frame
-  uniform sampler2D textureStage;      // RGB = stage colour, A = stage ID (0–7, −1 = non-company)
-  uniform vec2 stageCentroids[8];      // world-space centroid per VC stage, updated from JS each frame
+  uniform sampler2D textureSector;          // RGB = sector colour, A = sector ID (0–6, −1 = non-company)
+  uniform vec2 sectorCentroids[7];          // world-space centroid per sector, updated from JS each frame
+  uniform vec2 sectorLabelPositions[7];     // world-space label position per sector (JS spring physics)
+  uniform sampler2D textureBucket;          // RGB = size-bucket colour, A = bucket ID (0–5, −1 = non-company)
+  uniform vec2 bucketCentroids[6];          // world-space centroid per size bucket, updated from JS each frame
+  uniform vec2 bucketLabelPositions[6];     // world-space label position per size bucket
+  uniform sampler2D textureStage;           // RGB = stage colour, A = stage ID (0–7, −1 = non-company)
+  uniform vec2 stageCentroids[8];           // world-space centroid per VC stage, updated from JS each frame
+  uniform vec2 stageLabelPositions[8];        // world-space label position per VC stage
+  uniform sampler2D textureNeighborhood;      // RGB = neighborhood colour, A = neighborhood ID (0-7, -1 = non-company)
+  uniform vec2 neighborhoodCentroids[8];      // world-space centroid per neighborhood
+  uniform vec2 neighborhoodLabelPositions[8]; // world-space label position per neighborhood (Location filter)
+
+  // Boids flee their cluster's floating label — radius sized to label screen footprint (~150×30 px)
+  const float LABEL_REPEL_RADIUS = 35.0;
+  const float LABEL_REPEL_STR    = 200.0;
 
   const float width  = resolution.x;
   const float height = resolution.y;
@@ -302,27 +312,27 @@
     float selfNearCursor = smoothstep( cursorRadius, 0.0, selfCursorDist );
     bool  doCursorSpread = ( appState > 0.5 && isCompany > 0.5 && selfNearCursor > 0.001 );
 
-    // ── UTAH_SPRINGS: spring attraction toward 3 fixed geographic neighbors ─
+    // ── UTAH_SPRINGS (neighborhood): spring toward neighborhood centroid ────
     if ( appState > 1.5 && appState < 2.5 && isCompany > 0.5 ) {
-      vec4  nbData  = texture2D( textureNeighbors, uv );
-      float springK = 0.5;
-      float restLen = springRestLength;
-
-      for ( int n = 0; n < 3; n++ ) {
-        float nIdx = ( n == 0 ) ? nbData.r : ( n == 1 ) ? nbData.g : nbData.b;
-        if ( nIdx < 0.0 ) continue;
-        vec2  nUV  = vec2( ( mod( nIdx, width ) + 0.5 ) / width,
-                           ( floor( nIdx / width ) + 0.5 ) / height );
-        vec3  nPos = texture2D( texturePosition, nUV ).xyz;
-        vec3  toN  = nPos - selfPosition;
-        float d    = length( toN );
-        if ( d > 0.001 ) {
-          velocity += normalize( toN ) * springK * ( d - restLen ) * delta;
-        }
+      float nid = texture2D( textureNeighborhood, uv ).a;
+      if ( nid >= 0.0 ) {
+        int n = int( nid + 0.5 );
+        vec2 nc = vec2( 0.0 );
+        if      ( n == 0 ) nc = neighborhoodCentroids[ 0 ];
+        else if ( n == 1 ) nc = neighborhoodCentroids[ 1 ];
+        else if ( n == 2 ) nc = neighborhoodCentroids[ 2 ];
+        else if ( n == 3 ) nc = neighborhoodCentroids[ 3 ];
+        else if ( n == 4 ) nc = neighborhoodCentroids[ 4 ];
+        else if ( n == 5 ) nc = neighborhoodCentroids[ 5 ];
+        else if ( n == 6 ) nc = neighborhoodCentroids[ 6 ];
+        else if ( n == 7 ) nc = neighborhoodCentroids[ 7 ];
+        vec3 toCentroid = vec3( nc, 0.0 ) - selfPosition;
+        float d = length( toCentroid );
+        if ( d > 0.001 ) velocity += normalize( toCentroid ) * 0.4 * d * delta;
       }
     }
 
-    // ── STAGE: spring attraction toward this boid's VC-stage centroid ────────
+    // ── STAGE: spring toward centroid ────────────────────────────────────────
     if ( appState > 2.5 && appState < 3.5 && isCompany > 0.5 ) {
       float tid = texture2D( textureStage, uv ).a;
       if ( tid >= 0.0 ) {
@@ -342,7 +352,7 @@
       }
     }
 
-    // ── SECTOR: spring attraction toward this boid's sector centroid ─────────
+    // ── SECTOR: spring toward centroid ────────────────────────────────────────
     if ( appState > 3.5 && appState < 4.5 && isCompany > 0.5 ) {
       float sid = texture2D( textureSector, uv ).a;
       if ( sid >= 0.0 ) {
@@ -361,7 +371,7 @@
       }
     }
 
-    // ── COMPANY_SIZE: spring attraction toward this boid's size-bucket centroid ─
+    // ── COMPANY_SIZE: spring toward centroid ──────────────────────────────────
     if ( appState > 4.5 && appState < 5.5 && isCompany > 0.5 ) {
       float bid = texture2D( textureBucket, uv ).a;
       if ( bid >= 0.0 ) {
@@ -379,6 +389,45 @@
       }
     }
 
+    // ── Label repulsion: ALL company boids flee every label in the active state ─
+    // Applied outside the per-category blocks so every boid, not just its own
+    // colour group, clears space around all floating labels.
+    if ( isCompany > 0.5 ) {
+      vec3 fl; float ld;
+      if ( appState > 1.5 && appState < 2.5 ) {
+        for ( int i = 0; i < 8; i++ ) {
+          fl = selfPosition - vec3( neighborhoodLabelPositions[ i ], 0.0 );
+          ld = length( fl.xy );
+          if ( ld > 0.001 && ld < LABEL_REPEL_RADIUS )
+            velocity += vec3( fl.xy / ld, 0.0 ) * ( 1.0 - ld / LABEL_REPEL_RADIUS ) * delta * LABEL_REPEL_STR;
+        }
+      }
+      if ( appState > 2.5 && appState < 3.5 ) {
+        for ( int i = 0; i < 8; i++ ) {
+          fl = selfPosition - vec3( stageLabelPositions[ i ], 0.0 );
+          ld = length( fl.xy );
+          if ( ld > 0.001 && ld < LABEL_REPEL_RADIUS )
+            velocity += vec3( fl.xy / ld, 0.0 ) * ( 1.0 - ld / LABEL_REPEL_RADIUS ) * delta * LABEL_REPEL_STR;
+        }
+      }
+      if ( appState > 3.5 && appState < 4.5 ) {
+        for ( int i = 0; i < 7; i++ ) {
+          fl = selfPosition - vec3( sectorLabelPositions[ i ], 0.0 );
+          ld = length( fl.xy );
+          if ( ld > 0.001 && ld < LABEL_REPEL_RADIUS )
+            velocity += vec3( fl.xy / ld, 0.0 ) * ( 1.0 - ld / LABEL_REPEL_RADIUS ) * delta * LABEL_REPEL_STR;
+        }
+      }
+      if ( appState > 4.5 && appState < 5.5 ) {
+        for ( int i = 0; i < 6; i++ ) {
+          fl = selfPosition - vec3( bucketLabelPositions[ i ], 0.0 );
+          ld = length( fl.xy );
+          if ( ld > 0.001 && ld < LABEL_REPEL_RADIUS )
+            velocity += vec3( fl.xy / ld, 0.0 ) * ( 1.0 - ld / LABEL_REPEL_RADIUS ) * delta * LABEL_REPEL_STR;
+        }
+      }
+    }
+
     // ── Central attraction (fades out as settling increases) ───────────────
     float centralStrength = 1.0 - settlingFactor;
     dir = selfPosition;
@@ -389,16 +438,16 @@
 
     // ── Flocking + cursor spread + spring repulsion (single neighbour pass) ─
     float flockWeight   = 1.0 - settlingFactor;
-    bool  doSpringRepel  = ( appState > 1.5 && appState < 2.5 && isCompany > 0.5 );
-    float springRepelR   = 20.0;
+    bool  doNeighborhoodRepel = ( appState > 1.5 && appState < 2.5 && isCompany > 0.5 );
+    float neighborhoodRepelR  = springRestLength * 1.5;
     bool  doSectorRepel  = ( appState > 3.5 && appState < 4.5 && isCompany > 0.5 );
-    float sectorRepelR   = 20.0;
+    float sectorRepelR   = springRestLength * 1.5;
     bool  doBucketRepel  = ( appState > 4.5 && appState < 5.5 && isCompany > 0.5 );
-    float bucketRepelR   = 20.0;
+    float bucketRepelR   = springRestLength * 1.5;
     bool  doStageRepel   = ( appState > 2.5 && appState < 3.5 && isCompany > 0.5 );
-    float stageRepelR    = 20.0;
+    float stageRepelR    = springRestLength * 1.5;
 
-    if ( flockWeight > 0.001 || doCursorSpread || doSpringRepel || doSectorRepel || doBucketRepel || doStageRepel ) {
+    if ( flockWeight > 0.001 || doCursorSpread || doNeighborhoodRepel || doSectorRepel || doBucketRepel || doStageRepel ) {
       for ( float y = 0.0; y < height; y++ ) {
         for ( float x = 0.0; x < width; x++ ) {
 
@@ -413,7 +462,7 @@
           float xyDist       = length( dir.xy );
           bool  inFlockZone       = ( distSquared <= zoneRadiusSquared );
           bool  inSpreadZone      = ( doCursorSpread && xyDist > 0.001 && xyDist < targetSpacing );
-          bool  inRepelZone       = ( doSpringRepel  && xyDist > 0.001 && xyDist < springRepelR );
+          bool  inRepelZone       = ( doNeighborhoodRepel && xyDist > 0.001 && xyDist < neighborhoodRepelR );
           bool  inSectorRepelZone = ( doSectorRepel  && xyDist > 0.001 && xyDist < sectorRepelR );
           bool  inBucketRepelZone = ( doBucketRepel  && xyDist > 0.001 && xyDist < bucketRepelR );
           bool  inStageRepelZone  = ( doStageRepel   && xyDist > 0.001 && xyDist < stageRepelR  );
@@ -426,9 +475,9 @@
             velocity += normalize( vec3( -dir.x, -dir.y, 0.0 ) ) * repelStr;
           }
 
-          // ── UTAH_SPRINGS: short-range repulsion prevents any overlap ──────
+          // ── UTAH_SPRINGS (neighborhood): short-range repulsion ───────────
           if ( inRepelZone ) {
-            float repelStr = ( 1.0 - xyDist / springRepelR ) * delta * 60.0;
+            float repelStr = ( 1.0 - xyDist / neighborhoodRepelR ) * delta * 60.0;
             velocity -= normalize( vec3( dir.x, dir.y, 0.0 ) ) * repelStr;
           }
 
@@ -544,8 +593,11 @@
   uniform float sectorBlend;        // 0 = original birdColor, 1 = sector colour
   uniform sampler2D textureBucket;  // RGB = size-bucket colour, A = bucket ID
   uniform float bucketBlend;        // 0 = no bucket tint, 1 = bucket colour
-  uniform sampler2D textureStage;   // RGB = stage colour, A = stage ID
-  uniform float stageBlend;         // 0 = no stage tint, 1 = stage colour
+  uniform sampler2D textureStage;        // RGB = stage colour, A = stage ID
+  uniform float stageBlend;              // 0 = no stage tint, 1 = stage colour
+  uniform sampler2D textureNeighborhood; // RGB = neighborhood colour, A = neighborhood ID
+  uniform float neighborhoodBlend;       // 0 = no neighborhood tint, 1 = neighborhood colour
+  uniform float clusterScale;            // ramps 0→1 in clustering states; company boids scale 1→1.5×
   uniform float time;
 
   varying vec4 vColor;
@@ -577,16 +629,20 @@
     vec3 tiltedUp    = normalize( camUp    + camFwd * tiltV );
 
     // ── Billboard transform: place hex vertices around world-space pos ────
-    // position.xy comes from the local hexagon geometry (z = 0 always)
-    vec3 worldPos = pos + tiltedRight * position.x + tiltedUp * position.y;
+    // Company boids (textureSector.a >= 0) scale up to 1.5× in clustering states.
+    float isCompanyVS = step( 0.0, texture2D( textureSector, reference ).a );
+    float boidScale   = 1.0 + 0.5 * isCompanyVS * clusterScale;
+    vec3 worldPos = pos + tiltedRight * position.x * boidScale + tiltedUp * position.y * boidScale;
 
     z = worldPos.z;
-    vec3 secCol    = texture2D( textureSector, reference ).rgb;
-    vec3 bucketCol = texture2D( textureBucket, reference ).rgb;
-    vec3 stageCol  = texture2D( textureStage,  reference ).rgb;
+    vec3 secCol    = texture2D( textureSector,       reference ).rgb;
+    vec3 bucketCol = texture2D( textureBucket,       reference ).rgb;
+    vec3 stageCol  = texture2D( textureStage,        reference ).rgb;
+    vec3 neighCol  = texture2D( textureNeighborhood, reference ).rgb;
     vec3 tinted    = mix( birdColor, secCol,    sectorBlend );
          tinted    = mix( tinted,    bucketCol, bucketBlend );
          tinted    = mix( tinted,    stageCol,  stageBlend  );
+         tinted    = mix( tinted,    neighCol,  neighborhoodBlend );
     vColor = vec4( tinted, 1.0 );
     gl_Position = projectionMatrix * viewMatrix * vec4( worldPos, 1.0 );
   }
@@ -685,8 +741,65 @@ const STAGE_COLORS = [
 ];
 const STAGE_CSS_COLORS = [ '#a6a6b3', '#66ff66', '#44ccff', '#4466ff', '#a644ff', '#ff8c26', '#ff5933', '#ffd700' ];
 
+// Utah neighborhood regions for the Location filter
+const NEIGHBORHOODS = [
+  { name: 'Salt Lake City',    lat: 40.761, lon: -111.891 },
+  { name: 'SL County South',   lat: 40.570, lon: -111.890 },
+  { name: 'Point of Mountain', lat: 40.420, lon: -111.900 },
+  { name: 'Utah County',       lat: 40.234, lon: -111.659 },
+  { name: 'Park City',         lat: 40.646, lon: -111.498 },
+  { name: 'Ogden',             lat: 41.223, lon: -111.974 },
+  { name: 'Davis County',      lat: 40.970, lon: -111.890 },
+  { name: 'St. George',        lat: 37.097, lon: -113.568 },
+];
+const NEIGHBORHOOD_COUNT      = NEIGHBORHOODS.length;
+const NEIGHBORHOOD_CSS_COLORS = [ '#ff9966', '#ffcc44', '#44ffbb', '#44aaff', '#ff55cc', '#ffff55', '#55ddff', '#ff7755' ];
+const NEIGHBORHOOD_COLORS = [
+  [ 1.00, 0.60, 0.40 ], // Salt Lake City    – peach-orange
+  [ 1.00, 0.80, 0.27 ], // SL County South   – warm yellow
+  [ 0.27, 1.00, 0.73 ], // Point of Mountain – mint
+  [ 0.27, 0.67, 1.00 ], // Utah County       – sky blue
+  [ 1.00, 0.33, 0.80 ], // Park City         – pink
+  [ 1.00, 1.00, 0.33 ], // Ogden             – yellow
+  [ 0.33, 0.87, 1.00 ], // Davis County      – cyan
+  [ 1.00, 0.47, 0.33 ], // St. George        – coral
+];
+
 function setAppState( newState ) {
   currentState = newState;
+  if ( newState === APP_STATE.UTAH_SPRINGS ) {
+    for ( let n = 0; n < NEIGHBORHOOD_COUNT; n++ ) {
+      neighborhoodLabelPos[ n ].copy( neighborhoodWorldPos[ n ] );
+      neighborhoodLabelVel[ n ].set( 0, 0 );
+    }
+  } else if ( newState === APP_STATE.SECTOR ) {
+    for ( let s = 0; s < SECTOR_COUNT; s++ ) {
+      const angle = ( s / SECTOR_COUNT ) * Math.PI * 2;
+      sectorLabelPos[ s ].set(
+        sectorCentroidsWorld[ s ].x + Math.cos( angle ) * LABEL_TARGET_DIST,
+        sectorCentroidsWorld[ s ].y + Math.sin( angle ) * LABEL_TARGET_DIST
+      );
+      sectorLabelVel[ s ].set( 0, 0 );
+    }
+  } else if ( newState === APP_STATE.COMPANY_SIZE ) {
+    for ( let b = 0; b < BUCKET_COUNT; b++ ) {
+      const angle = ( b / BUCKET_COUNT ) * Math.PI * 2;
+      bucketLabelPos[ b ].set(
+        bucketCentroidsWorld[ b ].x + Math.cos( angle ) * LABEL_TARGET_DIST,
+        bucketCentroidsWorld[ b ].y + Math.sin( angle ) * LABEL_TARGET_DIST
+      );
+      bucketLabelVel[ b ].set( 0, 0 );
+    }
+  } else if ( newState === APP_STATE.STAGE ) {
+    for ( let s = 0; s < STAGE_COUNT; s++ ) {
+      const angle = ( s / STAGE_COUNT ) * Math.PI * 2;
+      stageLabelPos[ s ].set(
+        stageCentroidsWorld[ s ].x + Math.cos( angle ) * LABEL_TARGET_DIST,
+        stageCentroidsWorld[ s ].y + Math.sin( angle ) * LABEL_TARGET_DIST
+      );
+      stageLabelVel[ s ].set( 0, 0 );
+    }
+  }
 }
 
 
@@ -723,6 +836,12 @@ function project( lat, lon ) {
   ];
 }
 
+// Fixed world-space positions for each neighborhood (computed once, used as label centroids)
+const neighborhoodWorldPos = NEIGHBORHOODS.map( n => {
+  const [ x, y ] = project( n.lat, n.lon );
+  return new THREE.Vector2( x, y );
+} );
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Supabase – company locations
 // ─────────────────────────────────────────────────────────────────────────────
@@ -732,7 +851,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_nX4-QRSQZyU3ObYf06Rwdg_4yNhqrpk';
 async function fetchCompanies() {
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/companies?select=latitude,longitude,startup_name,logo_url,sector,employees,stage`,
+      `${SUPABASE_URL}/rest/v1/companies?select=latitude,longitude,startup_name,logo_url,sector,employees,stage,neighborhood`,
       {
         headers: {
           'apikey':        SUPABASE_ANON_KEY,
@@ -894,6 +1013,9 @@ let sectorBlend           = 0.0;
 let sectorBlendTarget     = 0.0;
 let sectorCentroidsWorld  = Array.from( { length: SECTOR_COUNT }, () => new THREE.Vector2( 0, 0 ) );
 let sectorLabelEls        = [];
+let sectorLabelPos        = Array.from( { length: SECTOR_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let sectorLabelVel        = Array.from( { length: SECTOR_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let sectorBoidPositions   = Array.from( { length: SECTOR_COUNT }, () => [] );
 
 // Company-size bucket state
 let companyBucketIds     = [];  // bucket index (0–5) per company boid
@@ -901,13 +1023,36 @@ let bucketBlend          = 0.0;
 let bucketBlendTarget    = 0.0;
 let bucketCentroidsWorld = Array.from( { length: BUCKET_COUNT }, () => new THREE.Vector2( 0, 0 ) );
 let bucketLabelEls       = [];
+let bucketLabelPos       = Array.from( { length: BUCKET_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let bucketLabelVel       = Array.from( { length: BUCKET_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let bucketBoidPositions  = Array.from( { length: BUCKET_COUNT }, () => [] );
 
 // VC stage state
 let companyStageIds     = [];  // stage index (0–7) per company boid
 let stageBlend          = 0.0;
 let stageBlendTarget    = 0.0;
+let clusterScale        = 0.0;  // ramps 0→1 when entering clustering states
 let stageCentroidsWorld = Array.from( { length: STAGE_COUNT }, () => new THREE.Vector2( 0, 0 ) );
 let stageLabelEls       = [];
+let stageLabelPos       = Array.from( { length: STAGE_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let stageLabelVel       = Array.from( { length: STAGE_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let stageBoidPositions  = Array.from( { length: STAGE_COUNT }, () => [] );
+
+// Neighborhood state (Location filter clustering)
+let companyNeighborhoodIds   = [];
+let neighborhoodBlend        = 0.0;
+let neighborhoodBlendTarget  = 0.0;
+let neighborhoodCentroidsWorld = Array.from( { length: NEIGHBORHOOD_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let neighborhoodLabelEls = [];
+let neighborhoodLabelPos = Array.from( { length: NEIGHBORHOOD_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let neighborhoodLabelVel = Array.from( { length: NEIGHBORHOOD_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+
+// Label spring physics constants
+const LABEL_TARGET_DIST     = 22.0;  // world units from cluster centroid where label settles
+const LABEL_SPRING_K        = 3.0;   // rest-length spring strength toward target radius
+const LABEL_LABEL_REPEL_R   = 35.0;  // labels of same type repel each other within this radius
+const LABEL_LABEL_REPEL_STR = 80.0;  // label-label repulsion strength
+const LABEL_DAMPING         = 7.0;   // velocity damping coefficient
 
 const _tmpV3             = new THREE.Vector3();
 
@@ -1035,8 +1180,19 @@ async function init() {
     } );
   } );
 
-  // Floating sector labels
+  // Floating neighborhood labels (Location filter)
   const sectorContainer = document.getElementById( 'sector-labels' );
+  for ( let n = 0; n < NEIGHBORHOOD_COUNT; n++ ) {
+    const el = document.createElement( 'div' );
+    el.className = 'sector-label-el';
+    el.textContent = NEIGHBORHOODS[ n ].name;
+    el.style.color = NEIGHBORHOOD_CSS_COLORS[ n ];
+    el.style.borderColor = NEIGHBORHOOD_CSS_COLORS[ n ];
+    sectorContainer.appendChild( el );
+    neighborhoodLabelEls.push( el );
+  }
+
+  // Floating sector labels
   for ( let s = 0; s < SECTOR_COUNT; s++ ) {
     const el = document.createElement( 'div' );
     el.className = 'sector-label-el';
@@ -1118,16 +1274,23 @@ function initGPGPU( companies ) {
   const UTAH_AREA_APPROX = 311 * 400 * 0.75; // scene-unit² (rect × ~75% fill)
   const springRestLength = companyCount > 1 ? Math.sqrt( UTAH_AREA_APPROX / companyCount ) : 25;
   velocityUniforms[ 'springRestLength'    ] = { value: springRestLength };
-  velocityUniforms[ 'textureSector'       ] = { value: buildSectorTexture( companies ) };
-  velocityUniforms[ 'sectorCentroids'     ] = { value: sectorCentroidsWorld };
-  velocityUniforms[ 'textureBucket'       ] = { value: buildBucketTexture( companies ) };
-  velocityUniforms[ 'bucketCentroids'     ] = { value: bucketCentroidsWorld };
-  velocityUniforms[ 'textureStage'        ] = { value: buildStageTexture( companies ) };
-  velocityUniforms[ 'stageCentroids'      ] = { value: stageCentroidsWorld };
+  velocityUniforms[ 'textureSector'          ] = { value: buildSectorTexture( companies ) };
+  velocityUniforms[ 'sectorCentroids'        ] = { value: sectorCentroidsWorld };
+  velocityUniforms[ 'sectorLabelPositions'   ] = { value: sectorLabelPos };
+  velocityUniforms[ 'textureBucket'          ] = { value: buildBucketTexture( companies ) };
+  velocityUniforms[ 'bucketCentroids'        ] = { value: bucketCentroidsWorld };
+  velocityUniforms[ 'bucketLabelPositions'   ] = { value: bucketLabelPos };
+  velocityUniforms[ 'textureStage'           ] = { value: buildStageTexture( companies ) };
+  velocityUniforms[ 'stageCentroids'         ] = { value: stageCentroidsWorld };
+  velocityUniforms[ 'stageLabelPositions'         ] = { value: stageLabelPos };
+  velocityUniforms[ 'textureNeighborhood'         ] = { value: buildNeighborhoodTexture( companies ) };
+  velocityUniforms[ 'neighborhoodCentroids'       ] = { value: neighborhoodCentroidsWorld };
+  velocityUniforms[ 'neighborhoodLabelPositions'  ] = { value: neighborhoodLabelPos };
 
   initSectorCentroids( companies );
   initBucketCentroids( companies );
   initStageCentroids( companies );
+  initNeighborhoodCentroids( companies );
 
   velocityVariable.material.defines.BOUNDS = BOUNDS.toFixed( 2 );
 
@@ -1271,8 +1434,14 @@ function initSectorCentroids( companies ) {
     }
   }
   for ( let s = 0; s < SECTOR_COUNT; s++ ) {
-    if ( sums[ s ].n > 0 )
+    if ( sums[ s ].n > 0 ) {
       sectorCentroidsWorld[ s ].set( sums[ s ].x / sums[ s ].n, sums[ s ].y / sums[ s ].n );
+      const angle = ( s / SECTOR_COUNT ) * Math.PI * 2;
+      sectorLabelPos[ s ].set(
+        sectorCentroidsWorld[ s ].x + Math.cos( angle ) * LABEL_TARGET_DIST,
+        sectorCentroidsWorld[ s ].y + Math.sin( angle ) * LABEL_TARGET_DIST
+      );
+    }
   }
 }
 
@@ -1319,8 +1488,14 @@ function initBucketCentroids( companies ) {
     }
   }
   for ( let b = 0; b < BUCKET_COUNT; b++ ) {
-    if ( sums[ b ].n > 0 )
+    if ( sums[ b ].n > 0 ) {
       bucketCentroidsWorld[ b ].set( sums[ b ].x / sums[ b ].n, sums[ b ].y / sums[ b ].n );
+      const angle = ( b / BUCKET_COUNT ) * Math.PI * 2;
+      bucketLabelPos[ b ].set(
+        bucketCentroidsWorld[ b ].x + Math.cos( angle ) * LABEL_TARGET_DIST,
+        bucketCentroidsWorld[ b ].y + Math.sin( angle ) * LABEL_TARGET_DIST
+      );
+    }
   }
 }
 
@@ -1367,8 +1542,69 @@ function initStageCentroids( companies ) {
     }
   }
   for ( let s = 0; s < STAGE_COUNT; s++ ) {
-    if ( sums[ s ].n > 0 )
+    if ( sums[ s ].n > 0 ) {
       stageCentroidsWorld[ s ].set( sums[ s ].x / sums[ s ].n, sums[ s ].y / sums[ s ].n );
+      const angle = ( s / STAGE_COUNT ) * Math.PI * 2;
+      stageLabelPos[ s ].set(
+        stageCentroidsWorld[ s ].x + Math.cos( angle ) * LABEL_TARGET_DIST,
+        stageCentroidsWorld[ s ].y + Math.sin( angle ) * LABEL_TARGET_DIST
+      );
+    }
+  }
+}
+
+function buildNeighborhoodTexture( companies ) {
+  const companyCount = Math.min( companies.length, BIRDS );
+  const data = new Float32Array( BIRDS * 4 );
+
+  companyNeighborhoodIds = [];
+  for ( let i = 0; i < companyCount; i++ ) {
+    const name = ( companies[ i ].neighborhood || '' ).trim();
+    let nid = NEIGHBORHOODS.findIndex( n => n.name === name );
+    if ( nid < 0 ) nid = 0;
+    companyNeighborhoodIds.push( nid );
+    const col = NEIGHBORHOOD_COLORS[ nid ];
+    data[ i * 4 + 0 ] = col[ 0 ];
+    data[ i * 4 + 1 ] = col[ 1 ];
+    data[ i * 4 + 2 ] = col[ 2 ];
+    data[ i * 4 + 3 ] = nid;
+  }
+  for ( let i = companyCount; i < BIRDS; i++ ) {
+    data[ i * 4 + 0 ] = 0.35;
+    data[ i * 4 + 1 ] = 0.47;
+    data[ i * 4 + 2 ] = 0.70;
+    data[ i * 4 + 3 ] = -1.0;
+  }
+
+  const tex = new THREE.DataTexture(
+    data, TEXTURE_WIDTH, TEXTURE_HEIGHT,
+    THREE.RGBAFormat, THREE.FloatType
+  );
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function initNeighborhoodCentroids( companies ) {
+  // Seed centroids from company geographic positions grouped by neighborhood
+  const sums = Array.from( { length: NEIGHBORHOOD_COUNT }, () => ( { x: 0, y: 0, n: 0 } ) );
+  for ( let i = 0; i < companyNeighborhoodIds.length; i++ ) {
+    const nid = companyNeighborhoodIds[ i ];
+    if ( nid >= 0 && nid < NEIGHBORHOOD_COUNT && i < companies.length ) {
+      const lat = companies[ i ].latitude  ?? NEIGHBORHOODS[ nid ].lat;
+      const lon = companies[ i ].longitude ?? NEIGHBORHOODS[ nid ].lon;
+      const [ x, y ] = project( lat, lon );
+      sums[ nid ].x += x; sums[ nid ].y += y; sums[ nid ].n++;
+    }
+  }
+  for ( let n = 0; n < NEIGHBORHOOD_COUNT; n++ ) {
+    if ( sums[ n ].n > 0 ) {
+      neighborhoodCentroidsWorld[ n ].set( sums[ n ].x / sums[ n ].n, sums[ n ].y / sums[ n ].n );
+    } else {
+      // Fall back to the fixed geographic position if no companies in this neighborhood
+      neighborhoodCentroidsWorld[ n ].copy( neighborhoodWorldPos[ n ] );
+    }
   }
 }
 
@@ -1393,8 +1629,11 @@ function initHexMesh( companyCount ) {
     sectorBlend:     { value: 0.0 },
     textureBucket:   { value: velocityUniforms[ 'textureBucket' ].value },
     bucketBlend:     { value: 0.0 },
-    textureStage:    { value: velocityUniforms[ 'textureStage'  ].value },
-    stageBlend:      { value: 0.0 },
+    textureStage:         { value: velocityUniforms[ 'textureStage'        ].value },
+    stageBlend:           { value: 0.0 },
+    textureNeighborhood:  { value: velocityUniforms[ 'textureNeighborhood' ].value },
+    neighborhoodBlend:    { value: 0.0 },
+    clusterScale:         { value: 0.0 },
     time:            { value: 0.0 },
     delta:           { value: 0.0 },
   };
@@ -1461,6 +1700,49 @@ function onPointerMove( e ) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Label spring physics
+// Each label is attracted to its cluster centroid and repelled by same-category
+// boids — it settles at the cluster's outer edge where the forces balance.
+// ─────────────────────────────────────────────────────────────────────────────
+function updateLabelPhysics( pos, vel, centroid, allLabelPos, delta ) {
+  const dx   = pos.x - centroid.x;
+  const dy   = pos.y - centroid.y;
+  const dist = Math.sqrt( dx * dx + dy * dy );
+
+  let fx = 0, fy = 0;
+
+  // Rest-length spring: push outward when closer than target, pull inward when further.
+  // This guarantees the label cannot sit at the centroid where force would be zero.
+  if ( dist > 0.001 ) {
+    const springF = ( dist - LABEL_TARGET_DIST ) * LABEL_SPRING_K;
+    fx -= ( dx / dist ) * springF;
+    fy -= ( dy / dist ) * springF;
+  } else {
+    fx += 0.05; // nudge off exact-zero to break symmetry
+  }
+
+  // Repulsion between labels of the same type so they spread around their clusters
+  // rather than stacking when two cluster centroids are close together.
+  for ( let j = 0; j < allLabelPos.length; j++ ) {
+    const other = allLabelPos[ j ];
+    if ( other === pos ) continue;
+    const odx   = pos.x - other.x;
+    const ody   = pos.y - other.y;
+    const odist = Math.sqrt( odx * odx + ody * ody );
+    if ( odist < LABEL_LABEL_REPEL_R && odist > 0.001 ) {
+      const f = LABEL_LABEL_REPEL_STR * ( 1.0 - odist / LABEL_LABEL_REPEL_R ) / odist;
+      fx += odx * f;
+      fy += ody * f;
+    }
+  }
+
+  vel.x = ( vel.x + fx * delta ) * ( 1.0 - LABEL_DAMPING * delta );
+  vel.y = ( vel.y + fy * delta ) * ( 1.0 - LABEL_DAMPING * delta );
+  pos.x += vel.x * delta;
+  pos.y += vel.y * delta;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Animation loop
 // ─────────────────────────────────────────────────────────────────────────────
 function animate() {
@@ -1518,18 +1800,36 @@ function animate() {
       };
     } );
 
-    // Recompute sector centroids in world space from the fresh readback
+    // Recompute neighborhood centroids
+    if ( currentState === APP_STATE.UTAH_SPRINGS && lastPosPixels ) {
+      const sums = Array.from( { length: NEIGHBORHOOD_COUNT }, () => ( { x: 0, y: 0, n: 0 } ) );
+      for ( let i = 0; i < companyNeighborhoodIds.length; i++ ) {
+        const nid = companyNeighborhoodIds[ i ];
+        if ( nid >= 0 && nid < NEIGHBORHOOD_COUNT ) {
+          const pi = i * 4;
+          sums[ nid ].x += lastPosPixels[ pi ];
+          sums[ nid ].y += lastPosPixels[ pi + 1 ];
+          sums[ nid ].n++;
+        }
+      }
+      for ( let n = 0; n < NEIGHBORHOOD_COUNT; n++ ) {
+        if ( sums[ n ].n > 0 )
+          neighborhoodCentroidsWorld[ n ].set( sums[ n ].x / sums[ n ].n, sums[ n ].y / sums[ n ].n );
+      }
+    }
+
+    // Recompute sector centroids + cache boid positions for label repulsion
     if ( currentState === APP_STATE.SECTOR && lastPosPixels ) {
       const sums = Array.from( { length: SECTOR_COUNT }, () => ( { x: 0, y: 0, n: 0 } ) );
+      sectorBoidPositions = Array.from( { length: SECTOR_COUNT }, () => [] );
       for ( let i = 0; i < companySectorIds.length; i++ ) {
         const sid = companySectorIds[ i ];
         if ( sid >= 0 && sid < SECTOR_COUNT ) {
-          const bx = i % TEXTURE_WIDTH;
-          const by = Math.floor( i / TEXTURE_WIDTH );
-          const pi = ( by * TEXTURE_WIDTH + bx ) * 4;
+          const pi = i * 4;
           sums[ sid ].x += lastPosPixels[ pi ];
           sums[ sid ].y += lastPosPixels[ pi + 1 ];
           sums[ sid ].n++;
+          sectorBoidPositions[ sid ].push( lastPosPixels[ pi ], lastPosPixels[ pi + 1 ] );
         }
       }
       for ( let s = 0; s < SECTOR_COUNT; s++ ) {
@@ -1538,18 +1838,18 @@ function animate() {
       }
     }
 
-    // Recompute VC-stage centroids in world space from the fresh readback
+    // Recompute VC-stage centroids + cache boid positions for label repulsion
     if ( currentState === APP_STATE.STAGE && lastPosPixels ) {
       const sums = Array.from( { length: STAGE_COUNT }, () => ( { x: 0, y: 0, n: 0 } ) );
+      stageBoidPositions = Array.from( { length: STAGE_COUNT }, () => [] );
       for ( let i = 0; i < companyStageIds.length; i++ ) {
         const sid = companyStageIds[ i ];
         if ( sid >= 0 && sid < STAGE_COUNT ) {
-          const bx = i % TEXTURE_WIDTH;
-          const by = Math.floor( i / TEXTURE_WIDTH );
-          const pi = ( by * TEXTURE_WIDTH + bx ) * 4;
+          const pi = i * 4;
           sums[ sid ].x += lastPosPixels[ pi ];
           sums[ sid ].y += lastPosPixels[ pi + 1 ];
           sums[ sid ].n++;
+          stageBoidPositions[ sid ].push( lastPosPixels[ pi ], lastPosPixels[ pi + 1 ] );
         }
       }
       for ( let s = 0; s < STAGE_COUNT; s++ ) {
@@ -1558,18 +1858,18 @@ function animate() {
       }
     }
 
-    // Recompute size-bucket centroids in world space from the fresh readback
+    // Recompute size-bucket centroids + cache boid positions for label repulsion
     if ( currentState === APP_STATE.COMPANY_SIZE && lastPosPixels ) {
       const sums = Array.from( { length: BUCKET_COUNT }, () => ( { x: 0, y: 0, n: 0 } ) );
+      bucketBoidPositions = Array.from( { length: BUCKET_COUNT }, () => [] );
       for ( let i = 0; i < companyBucketIds.length; i++ ) {
         const bid = companyBucketIds[ i ];
         if ( bid >= 0 && bid < BUCKET_COUNT ) {
-          const bx = i % TEXTURE_WIDTH;
-          const by = Math.floor( i / TEXTURE_WIDTH );
-          const pi = ( by * TEXTURE_WIDTH + bx ) * 4;
+          const pi = i * 4;
           sums[ bid ].x += lastPosPixels[ pi ];
           sums[ bid ].y += lastPosPixels[ pi + 1 ];
           sums[ bid ].n++;
+          bucketBoidPositions[ bid ].push( lastPosPixels[ pi ], lastPosPixels[ pi + 1 ] );
         }
       }
       for ( let b = 0; b < BUCKET_COUNT; b++ ) {
@@ -1579,22 +1879,43 @@ function animate() {
     }
   }
 
-  // Colour blend ramps + label positioning (every frame)
-  sectorBlendTarget = ( currentState === APP_STATE.SECTOR       ) ? 1.0 : 0.0;
-  bucketBlendTarget = ( currentState === APP_STATE.COMPANY_SIZE ) ? 1.0 : 0.0;
-  stageBlendTarget  = ( currentState === APP_STATE.STAGE        ) ? 1.0 : 0.0;
-  sectorBlend += ( sectorBlendTarget - sectorBlend ) * Math.min( 1.0, delta * 2.0 );
-  bucketBlend += ( bucketBlendTarget - bucketBlend ) * Math.min( 1.0, delta * 2.0 );
-  stageBlend  += ( stageBlendTarget  - stageBlend  ) * Math.min( 1.0, delta * 2.0 );
-  hexUniforms[ 'sectorBlend' ].value = sectorBlend;
-  hexUniforms[ 'bucketBlend' ].value = bucketBlend;
-  hexUniforms[ 'stageBlend'  ].value = stageBlend;
+  // Colour blend ramps + cluster size ramp + label positioning (every frame)
+  sectorBlendTarget       = ( currentState === APP_STATE.SECTOR        ) ? 1.0 : 0.0;
+  bucketBlendTarget       = ( currentState === APP_STATE.COMPANY_SIZE  ) ? 1.0 : 0.0;
+  stageBlendTarget        = ( currentState === APP_STATE.STAGE         ) ? 1.0 : 0.0;
+  neighborhoodBlendTarget = ( currentState === APP_STATE.UTAH_SPRINGS  ) ? 1.0 : 0.0;
+  sectorBlend        += ( sectorBlendTarget       - sectorBlend        ) * Math.min( 1.0, delta * 2.0 );
+  bucketBlend        += ( bucketBlendTarget       - bucketBlend        ) * Math.min( 1.0, delta * 2.0 );
+  stageBlend         += ( stageBlendTarget        - stageBlend         ) * Math.min( 1.0, delta * 2.0 );
+  neighborhoodBlend  += ( neighborhoodBlendTarget - neighborhoodBlend  ) * Math.min( 1.0, delta * 2.0 );
+  const clusterScaleTarget = ( currentState > APP_STATE.UTAH_MAP ) ? 1.0 : 0.0;
+  clusterScale += ( clusterScaleTarget - clusterScale ) * Math.min( 1.0, delta * 2.0 );
+  hexUniforms[ 'sectorBlend'        ].value = sectorBlend;
+  hexUniforms[ 'bucketBlend'        ].value = bucketBlend;
+  hexUniforms[ 'stageBlend'         ].value = stageBlend;
+  hexUniforms[ 'neighborhoodBlend'  ].value = neighborhoodBlend;
+  hexUniforms[ 'clusterScale'       ].value = clusterScale;
+
+  for ( let n = 0; n < neighborhoodLabelEls.length; n++ ) {
+    const el = neighborhoodLabelEls[ n ];
+    if ( currentState === APP_STATE.UTAH_SPRINGS ) {
+      updateLabelPhysics( neighborhoodLabelPos[ n ], neighborhoodLabelVel[ n ],
+                          neighborhoodCentroidsWorld[ n ], neighborhoodLabelPos, delta );
+      _tmpV3.set( neighborhoodLabelPos[ n ].x, neighborhoodLabelPos[ n ].y, 0 ).project( camera );
+      el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
+      el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
+      el.classList.add( 'visible' );
+    } else {
+      el.classList.remove( 'visible' );
+    }
+  }
 
   for ( let s = 0; s < sectorLabelEls.length; s++ ) {
     const el = sectorLabelEls[ s ];
     if ( currentState === APP_STATE.SECTOR ) {
-      const wc = sectorCentroidsWorld[ s ];
-      _tmpV3.set( wc.x, wc.y, 0 ).project( camera );
+      updateLabelPhysics( sectorLabelPos[ s ], sectorLabelVel[ s ],
+                          sectorCentroidsWorld[ s ], sectorLabelPos, delta );
+      _tmpV3.set( sectorLabelPos[ s ].x, sectorLabelPos[ s ].y, 0 ).project( camera );
       el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
       el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
       el.classList.add( 'visible' );
@@ -1606,8 +1927,9 @@ function animate() {
   for ( let b = 0; b < bucketLabelEls.length; b++ ) {
     const el = bucketLabelEls[ b ];
     if ( currentState === APP_STATE.COMPANY_SIZE ) {
-      const wc = bucketCentroidsWorld[ b ];
-      _tmpV3.set( wc.x, wc.y, 0 ).project( camera );
+      updateLabelPhysics( bucketLabelPos[ b ], bucketLabelVel[ b ],
+                          bucketCentroidsWorld[ b ], bucketLabelPos, delta );
+      _tmpV3.set( bucketLabelPos[ b ].x, bucketLabelPos[ b ].y, 0 ).project( camera );
       el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
       el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
       el.classList.add( 'visible' );
@@ -1619,8 +1941,9 @@ function animate() {
   for ( let s = 0; s < stageLabelEls.length; s++ ) {
     const el = stageLabelEls[ s ];
     if ( currentState === APP_STATE.STAGE ) {
-      const wc = stageCentroidsWorld[ s ];
-      _tmpV3.set( wc.x, wc.y, 0 ).project( camera );
+      updateLabelPhysics( stageLabelPos[ s ], stageLabelVel[ s ],
+                          stageCentroidsWorld[ s ], stageLabelPos, delta );
+      _tmpV3.set( stageLabelPos[ s ].x, stageLabelPos[ s ].y, 0 ).project( camera );
       el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
       el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
       el.classList.add( 'visible' );

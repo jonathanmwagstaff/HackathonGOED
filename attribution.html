@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Attribution – Hexagon Boids Animation</title>
+  <style>
+    :root {
+      --bg:   #0a0f1e;
+      --card: #111827;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #60a5fa;
+      --border: #1e293b;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      line-height: 1.7;
+      padding: 48px 24px;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 8px; }
+    h2 { font-size: 1.1rem; font-weight: 600; color: var(--accent); margin: 32px 0 8px; }
+    p, li { color: var(--muted); margin-bottom: 12px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 16px 0;
+    }
+    pre {
+      background: #0d1525;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 0.85rem;
+      color: #93c5fd;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-top: 12px;
+    }
+    ul { padding-left: 20px; }
+    .tag {
+      display: inline-block;
+      background: #1e3a5f;
+      color: var(--accent);
+      font-size: 0.75rem;
+      border-radius: 4px;
+      padding: 2px 8px;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Open-Source Attribution</h1>
+  <p>This animation is built on open-source work. We are grateful to the authors listed below.</p>
+
+  <div class="card">
+    <span class="tag">MIT License</span>
+    <h2>Three.js – WebGL GPGPU Birds / Flocking Example</h2>
+
+    <p>
+      Original demo:
+      <a href="https://threejs.org/examples/webgl_gpgpu_birds.html" target="_blank" rel="noopener">
+        threejs.org/examples/webgl_gpgpu_birds.html
+      </a>
+    </p>
+    <p>
+      Source repository:
+      <a href="https://github.com/mrdoob/three.js" target="_blank" rel="noopener">
+        github.com/mrdoob/three.js
+      </a>
+    </p>
+
+    <p>
+      The hexagon boid animation on this site is derived from the Three.js GPGPU birds
+      example. The core GPU-based flocking simulation (separation, alignment, cohesion),
+      the <code>GPUComputationRenderer</code> utility, and the overall render architecture
+      are copied or adapted from the original work with the following modifications:
+    </p>
+    <ul>
+      <li>Bird wing geometry replaced with flat hexagonal meshes rendered as camera-facing billboards.</li>
+      <li>Wing-flap vertex animation replaced with a speed-proportional leaf-flutter wobble.</li>
+      <li>Velocity shader extended with a homing force that guides each boid to an assigned
+          target position along the outline of the State of Utah.</li>
+      <li>Lat / lon coordinates projected to scene space with a cosine-corrected flat-plane
+          mapping (no globe curvature).</li>
+    </ul>
+
+    <pre>The MIT License
+
+Copyright © 2010-2024 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</pre>
+  </div>
+
+  <div class="card">
+    <span class="tag">MIT License</span>
+    <h2>Three.js (core library)</h2>
+    <p>
+      The animation uses <code>three.js</code> r184 as its rendering engine.
+      <a href="https://threejs.org" target="_blank" rel="noopener">threejs.org</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/mrdoob/three.js/blob/master/LICENSE" target="_blank" rel="noopener">
+        MIT License
+      </a>
+    </p>
+  </div>
+
+  <p style="margin-top:40px; font-size:0.85rem;">
+    <a href="index.html">← Back to animation</a>
+  </p>
+
+</div>
+</body>
+</html>

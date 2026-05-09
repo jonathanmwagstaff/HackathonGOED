@@ -1,0 +1,1638 @@
+<!DOCTYPE html>
+<!--
+  Hexagon Boids – Utah Formation
+  ─────────────────────────────────────────────────────────────────────────────
+  Derived from Three.js "webgl_gpgpu_birds" example
+  Original: https://threejs.org/examples/webgl_gpgpu_birds.html
+  Original authors: mr.doob / https://mrdoob.com
+  License: MIT  –  see attribution.html for full notice
+  ─────────────────────────────────────────────────────────────────────────────
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <title>Hexagon Boids – Utah Formation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #0a0f1e; }
+
+    #overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 36px;
+      z-index: 10;
+      pointer-events: none;
+      /* fuzzy dark halo behind the text block */
+      background: radial-gradient(ellipse 75% 45% at 50% 44%, rgba(5,10,25,0.78) 0%, transparent 100%);
+    }
+    #overlay h1 {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: clamp(1.4rem, 4vw, 2.8rem);
+      font-weight: 700;
+      color: #e2e8f0;
+      text-align: center;
+      max-width: 720px;
+      padding: 0 24px;
+      line-height: 1.25;
+      /* layered shadows for legibility against moving boids */
+      text-shadow:
+        0 0 18px rgba(5,10,25,1),
+        0 0 40px rgba(5,10,25,0.95),
+        0 0 70px rgba(5,10,25,0.8),
+        0 2px 6px rgba(0,0,0,1);
+    }
+    #startBtn {
+      pointer-events: all;
+      background: linear-gradient(135deg, #b8860b, #ffd700);
+      color: #0a0f1e;
+      border: none;
+      padding: 18px 48px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: system-ui, -apple-system, sans-serif;
+      letter-spacing: 0.06em;
+      box-shadow: 0 0 40px rgba(255,215,0,0.35);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    #startBtn:hover {
+      transform: scale(1.06);
+      box-shadow: 0 0 60px rgba(255,215,0,0.55);
+    }
+    #attr {
+      position: fixed;
+      bottom: 16px;
+      right: 20px;
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      z-index: 10;
+    }
+    #attr a {
+      color: rgba(100,160,255,0.5);
+      text-decoration: none;
+    }
+    #attr a:hover { color: rgba(100,160,255,1); }
+    #tooltip {
+      position: fixed;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      pointer-events: none;
+      z-index: 20;
+      transform: translate(-50%, -50%);
+    }
+    #tooltip-logo {
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255,215,0,0.85);
+      background: rgba(10,15,30,0.9);
+    }
+    #tooltip-name {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      color: #e2e8f0;
+      background: rgba(10,15,30,0.82);
+      padding: 2px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    }
+    #filter-bar {
+      position: fixed;
+      bottom: 36px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 10px;
+      z-index: 10;
+    }
+    .filter-label {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(226,232,240,0.45);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    .filter-btn {
+      background: rgba(10,15,30,0.72);
+      border: 1px solid rgba(184,134,11,0.35);
+      color: rgba(226,232,240,0.75);
+      padding: 9px 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: system-ui, -apple-system, sans-serif;
+      letter-spacing: 0.05em;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+      backdrop-filter: blur(6px);
+    }
+    .filter-btn:hover {
+      background: rgba(184,134,11,0.18);
+      border-color: rgba(255,215,0,0.65);
+      color: #ffd700;
+    }
+    .filter-btn.active {
+      background: rgba(184,134,11,0.28);
+      border-color: #ffd700;
+      color: #ffd700;
+      box-shadow: 0 0 14px rgba(255,215,0,0.22);
+    }
+    #sector-labels {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 15;
+    }
+    .sector-label-el {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1.5px solid;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+      backdrop-filter: blur(4px);
+      background: rgba(10,15,30,0.72);
+    }
+    .sector-label-el.visible { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div id="overlay">
+  <h1>See the Swarm of Activity in the Utah Startup Ecosystem</h1>
+  <button id="startBtn">See Utah Companies</button>
+</div>
+<div id="tooltip">
+  <img id="tooltip-logo" src="" alt="">
+  <span id="tooltip-name"></span>
+</div>
+<div id="filter-bar">
+  <span class="filter-label">Filter</span>
+  <button class="filter-btn" id="btn-location">Location</button>
+  <button class="filter-btn" id="btn-sector">Sector</button>
+  <button class="filter-btn" id="btn-company-size">Company Size</button>
+  <button class="filter-btn" id="btn-stage">Stage</button>
+</div>
+<div id="sector-labels"></div>
+<div id="attr">
+  <a href="attribution.html" target="_blank">Attribution</a>
+</div>
+
+<!-- ─────────────────────────────────────────────────
+     GPGPU: Position update shader
+     w-channel stores phase (drives flutter wobble)
+──────────────────────────────────────────────────── -->
+<script id="fragmentShaderPosition" type="x-shader/x-fragment">
+  uniform float time;
+  uniform float delta;
+
+  void main() {
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    vec4 tmpPos  = texture2D( texturePosition, uv );
+    vec3 position = tmpPos.xyz;
+    vec3 velocity = texture2D( textureVelocity, uv ).xyz;
+
+    float phase = tmpPos.w;
+
+    // Phase advances with speed – drives the wobble intensity in the vertex shader.
+    // When settled (speed ≈ 0) phase stops advancing; wobble amplitude is also 0.
+    phase = mod( phase + delta * length( velocity ) * 0.5, 62.83 );
+
+    gl_FragColor = vec4( position + velocity * delta * 15.0, phase );
+  }
+</script>
+
+<!-- ─────────────────────────────────────────────────
+     GPGPU: Velocity update shader
+     Flocking (separation / alignment / cohesion) blended
+     with a homing force toward each boid's target position.
+──────────────────────────────────────────────────── -->
+<script id="fragmentShaderVelocity" type="x-shader/x-fragment">
+  uniform float time;
+  uniform float delta;
+  uniform float separationDistance;
+  uniform float alignmentDistance;
+  uniform float cohesionDistance;
+  uniform float freedomFactor;
+  uniform vec3  predator;
+
+  // Settling uniforms
+  uniform float settlingFactor;        // 0 = pure flocking, 1 = fully homing
+  uniform sampler2D textureTarget;     // target position per boid (same dims as position/velocity)
+  uniform float appState;              // 0=SWARM, 1=UTAH_MAP, 2=UTAH_SPRINGS, 3=STAGE, 4=SECTOR, 5=COMPANY_SIZE, 6=TRANSITION
+  uniform sampler2D textureNeighbors;  // UTAH_SPRINGS: 3 fixed geographic neighbor indices per boid (RGB)
+  uniform float springRestLength;      // UTAH_SPRINGS: natural spring length (world units)
+  uniform sampler2D textureSector;     // RGB = sector colour, A = sector ID (0–6, −1 = non-company)
+  uniform vec2 sectorCentroids[7];     // world-space centroid per sector, updated from JS each frame
+  uniform sampler2D textureBucket;     // RGB = size-bucket colour, A = bucket ID (0–5, −1 = non-company)
+  uniform vec2 bucketCentroids[6];     // world-space centroid per size bucket, updated from JS each frame
+  uniform sampler2D textureStage;      // RGB = stage colour, A = stage ID (0–7, −1 = non-company)
+  uniform vec2 stageCentroids[8];      // world-space centroid per VC stage, updated from JS each frame
+
+  const float width  = resolution.x;
+  const float height = resolution.y;
+
+  const float PI   = 3.141592653589793;
+  const float PI_2 = PI * 2.0;
+
+  float zoneRadius        = 40.0;
+  float zoneRadiusSquared = 1600.0;
+  float separationThresh  = 0.45;
+  float alignmentThresh   = 0.65;
+
+  const float UPPER_BOUNDS = BOUNDS;
+  const float SPEED_LIMIT  = 9.0;
+
+  void main() {
+    zoneRadius        = separationDistance + alignmentDistance + cohesionDistance;
+    separationThresh  = separationDistance / zoneRadius;
+    alignmentThresh   = ( separationDistance + alignmentDistance ) / zoneRadius;
+    zoneRadiusSquared = zoneRadius * zoneRadius;
+
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+
+    vec3 selfPosition = texture2D( texturePosition, uv ).xyz;
+    vec3 selfVelocity = texture2D( textureVelocity, uv ).xyz;
+
+    // w=2.0 → company boid (reacts to mouse); w=0.0 → outline boid (locks in place)
+    float isCompany = step( 1.5, texture2D( textureTarget, uv ).w );
+
+    vec3 birdPosition, birdVelocity;
+    float dist, distSquared, f, percent;
+    vec3 dir;
+
+    vec3 velocity = selfVelocity;
+    float limit   = SPEED_LIMIT;
+
+    // ── Mouse / cursor interaction (state-dependent) ───────────────────────
+    float targetSpacing  = 18.0;            // ~2 hex diameters (HEX_RADIUS = 4.5)
+    vec3  cursorWorld    = predator * UPPER_BOUNDS;
+    cursorWorld.z        = 0.0;
+    float selfCursorDist = length( selfPosition.xy - cursorWorld.xy );
+
+    // SWARM: mouse is a predator — all boids flee from it
+    if ( appState < 0.5 ) {
+      if ( selfCursorDist > 0.001 && selfCursorDist < 150.0 ) {
+        vec3 fleeDir = selfPosition - cursorWorld;
+        fleeDir.z = 0.0;
+        float fleePower = ( 1.0 - selfCursorDist / 150.0 );
+        velocity += normalize( fleeDir ) * delta * 40.0 * fleePower;
+      }
+    }
+
+    // UTAH_MAP+: cursor spreads overlapping company boids so each is individually visible
+    float cursorRadius   = mix( 150.0, 45.0, settlingFactor );  // shrinks to tight zone when settled
+    float selfNearCursor = smoothstep( cursorRadius, 0.0, selfCursorDist );
+    bool  doCursorSpread = ( appState > 0.5 && isCompany > 0.5 && selfNearCursor > 0.001 );
+
+    // ── UTAH_SPRINGS: spring attraction toward 3 fixed geographic neighbors ─
+    if ( appState > 1.5 && appState < 2.5 && isCompany > 0.5 ) {
+      vec4  nbData  = texture2D( textureNeighbors, uv );
+      float springK = 0.5;
+      float restLen = springRestLength;
+
+      for ( int n = 0; n < 3; n++ ) {
+        float nIdx = ( n == 0 ) ? nbData.r : ( n == 1 ) ? nbData.g : nbData.b;
+        if ( nIdx < 0.0 ) continue;
+        vec2  nUV  = vec2( ( mod( nIdx, width ) + 0.5 ) / width,
+                           ( floor( nIdx / width ) + 0.5 ) / height );
+        vec3  nPos = texture2D( texturePosition, nUV ).xyz;
+        vec3  toN  = nPos - selfPosition;
+        float d    = length( toN );
+        if ( d > 0.001 ) {
+          velocity += normalize( toN ) * springK * ( d - restLen ) * delta;
+        }
+      }
+    }
+
+    // ── STAGE: spring attraction toward this boid's VC-stage centroid ────────
+    if ( appState > 2.5 && appState < 3.5 && isCompany > 0.5 ) {
+      float tid = texture2D( textureStage, uv ).a;
+      if ( tid >= 0.0 ) {
+        int t = int( tid + 0.5 );
+        vec2 sc = vec2( 0.0 );
+        if      ( t == 0 ) sc = stageCentroids[ 0 ];
+        else if ( t == 1 ) sc = stageCentroids[ 1 ];
+        else if ( t == 2 ) sc = stageCentroids[ 2 ];
+        else if ( t == 3 ) sc = stageCentroids[ 3 ];
+        else if ( t == 4 ) sc = stageCentroids[ 4 ];
+        else if ( t == 5 ) sc = stageCentroids[ 5 ];
+        else if ( t == 6 ) sc = stageCentroids[ 6 ];
+        else if ( t == 7 ) sc = stageCentroids[ 7 ];
+        vec3 toCentroid = vec3( sc, 0.0 ) - selfPosition;
+        float d = length( toCentroid );
+        if ( d > 0.001 ) velocity += normalize( toCentroid ) * 0.4 * d * delta;
+      }
+    }
+
+    // ── SECTOR: spring attraction toward this boid's sector centroid ─────────
+    if ( appState > 3.5 && appState < 4.5 && isCompany > 0.5 ) {
+      float sid = texture2D( textureSector, uv ).a;
+      if ( sid >= 0.0 ) {
+        int s = int( sid + 0.5 );
+        vec2 sc = vec2( 0.0 );
+        if      ( s == 0 ) sc = sectorCentroids[ 0 ];
+        else if ( s == 1 ) sc = sectorCentroids[ 1 ];
+        else if ( s == 2 ) sc = sectorCentroids[ 2 ];
+        else if ( s == 3 ) sc = sectorCentroids[ 3 ];
+        else if ( s == 4 ) sc = sectorCentroids[ 4 ];
+        else if ( s == 5 ) sc = sectorCentroids[ 5 ];
+        else if ( s == 6 ) sc = sectorCentroids[ 6 ];
+        vec3 toCentroid = vec3( sc, 0.0 ) - selfPosition;
+        float d = length( toCentroid );
+        if ( d > 0.001 ) velocity += normalize( toCentroid ) * 0.4 * d * delta;
+      }
+    }
+
+    // ── COMPANY_SIZE: spring attraction toward this boid's size-bucket centroid ─
+    if ( appState > 4.5 && appState < 5.5 && isCompany > 0.5 ) {
+      float bid = texture2D( textureBucket, uv ).a;
+      if ( bid >= 0.0 ) {
+        int b = int( bid + 0.5 );
+        vec2 bc = vec2( 0.0 );
+        if      ( b == 0 ) bc = bucketCentroids[ 0 ];
+        else if ( b == 1 ) bc = bucketCentroids[ 1 ];
+        else if ( b == 2 ) bc = bucketCentroids[ 2 ];
+        else if ( b == 3 ) bc = bucketCentroids[ 3 ];
+        else if ( b == 4 ) bc = bucketCentroids[ 4 ];
+        else if ( b == 5 ) bc = bucketCentroids[ 5 ];
+        vec3 toCentroid = vec3( bc, 0.0 ) - selfPosition;
+        float d = length( toCentroid );
+        if ( d > 0.001 ) velocity += normalize( toCentroid ) * 0.4 * d * delta;
+      }
+    }
+
+    // ── Central attraction (fades out as settling increases) ───────────────
+    float centralStrength = 1.0 - settlingFactor;
+    dir = selfPosition;
+    dir.y *= 2.5;
+    if ( length( dir ) > 0.1 ) {
+      velocity -= normalize( dir ) * delta * 5.0 * centralStrength;
+    }
+
+    // ── Flocking + cursor spread + spring repulsion (single neighbour pass) ─
+    float flockWeight   = 1.0 - settlingFactor;
+    bool  doSpringRepel  = ( appState > 1.5 && appState < 2.5 && isCompany > 0.5 );
+    float springRepelR   = 20.0;
+    bool  doSectorRepel  = ( appState > 3.5 && appState < 4.5 && isCompany > 0.5 );
+    float sectorRepelR   = 20.0;
+    bool  doBucketRepel  = ( appState > 4.5 && appState < 5.5 && isCompany > 0.5 );
+    float bucketRepelR   = 20.0;
+    bool  doStageRepel   = ( appState > 2.5 && appState < 3.5 && isCompany > 0.5 );
+    float stageRepelR    = 20.0;
+
+    if ( flockWeight > 0.001 || doCursorSpread || doSpringRepel || doSectorRepel || doBucketRepel || doStageRepel ) {
+      for ( float y = 0.0; y < height; y++ ) {
+        for ( float x = 0.0; x < width; x++ ) {
+
+          vec2 ref = vec2( x + 0.5, y + 0.5 ) / resolution.xy;
+          birdPosition = texture2D( texturePosition, ref ).xyz;
+
+          dir = birdPosition - selfPosition;
+          dist = length( dir );
+          if ( dist < 0.0001 ) continue;
+          distSquared = dist * dist;
+
+          float xyDist       = length( dir.xy );
+          bool  inFlockZone       = ( distSquared <= zoneRadiusSquared );
+          bool  inSpreadZone      = ( doCursorSpread && xyDist > 0.001 && xyDist < targetSpacing );
+          bool  inRepelZone       = ( doSpringRepel  && xyDist > 0.001 && xyDist < springRepelR );
+          bool  inSectorRepelZone = ( doSectorRepel  && xyDist > 0.001 && xyDist < sectorRepelR );
+          bool  inBucketRepelZone = ( doBucketRepel  && xyDist > 0.001 && xyDist < bucketRepelR );
+          bool  inStageRepelZone  = ( doStageRepel   && xyDist > 0.001 && xyDist < stageRepelR  );
+
+          if ( !inFlockZone && !inSpreadZone && !inRepelZone && !inSectorRepelZone && !inBucketRepelZone && !inStageRepelZone ) continue;
+
+          // ── Cursor spread: repel neighbours closer than 2 hex diameters ──
+          if ( inSpreadZone ) {
+            float repelStr = ( 1.0 - xyDist / targetSpacing ) * selfNearCursor * delta * 50.0;
+            velocity += normalize( vec3( -dir.x, -dir.y, 0.0 ) ) * repelStr;
+          }
+
+          // ── UTAH_SPRINGS: short-range repulsion prevents any overlap ──────
+          if ( inRepelZone ) {
+            float repelStr = ( 1.0 - xyDist / springRepelR ) * delta * 60.0;
+            velocity -= normalize( vec3( dir.x, dir.y, 0.0 ) ) * repelStr;
+          }
+
+          // ── SECTOR: short-range repulsion keeps boids within a cluster spread ──
+          if ( inSectorRepelZone ) {
+            float repelStr = ( 1.0 - xyDist / sectorRepelR ) * delta * 60.0;
+            velocity -= normalize( vec3( dir.x, dir.y, 0.0 ) ) * repelStr;
+          }
+
+          // ── COMPANY_SIZE: short-range repulsion within size bucket ────────
+          if ( inBucketRepelZone ) {
+            float repelStr = ( 1.0 - xyDist / bucketRepelR ) * delta * 60.0;
+            velocity -= normalize( vec3( dir.x, dir.y, 0.0 ) ) * repelStr;
+          }
+
+          // ── STAGE: short-range repulsion within stage cluster ─────────────
+          if ( inStageRepelZone ) {
+            float repelStr = ( 1.0 - xyDist / stageRepelR ) * delta * 60.0;
+            velocity -= normalize( vec3( dir.x, dir.y, 0.0 ) ) * repelStr;
+          }
+
+          // ── Flocking: separation / alignment / cohesion ────────────────
+          if ( inFlockZone && flockWeight > 0.001 ) {
+            percent = distSquared / zoneRadiusSquared;
+
+            if ( percent < separationThresh ) {
+              f = ( separationThresh / percent - 1.0 ) * delta * flockWeight;
+              velocity -= normalize( dir ) * f;
+
+            } else if ( percent < alignmentThresh ) {
+              birdVelocity = texture2D( textureVelocity, ref ).xyz;
+              float bvLen = length( birdVelocity );
+              if ( bvLen > 0.001 ) {
+                float threshDelta     = alignmentThresh - separationThresh;
+                float adjustedPercent = ( percent - separationThresh ) / threshDelta;
+                f = ( 0.5 - cos( adjustedPercent * PI_2 ) * 0.5 + 0.5 ) * delta * flockWeight;
+                velocity += ( birdVelocity / bvLen ) * f;
+              }
+
+            } else {
+              float threshDelta = 1.0 - alignmentThresh;
+              float adjustedPercent;
+              if ( threshDelta == 0.0 ) adjustedPercent = 1.0;
+              else adjustedPercent = ( percent - alignmentThresh ) / threshDelta;
+              f = ( 0.5 - ( cos( adjustedPercent * PI_2 ) * -0.5 + 0.5 ) ) * delta * flockWeight;
+              velocity += normalize( dir ) * f;
+            }
+          }
+        }
+      }
+    }
+
+    // ── Homing force toward assigned target ────────────────────────────────
+    // Skipped for company boids in UTAH_SPRINGS — springs determine their layout.
+    // Outline boids always home so the Utah border stays fixed.
+    bool shouldHome = settlingFactor > 0.0
+      && !( appState > 1.5 && appState < 5.5 && isCompany > 0.5 );
+    if ( shouldHome ) {
+      vec3 targetPos  = texture2D( textureTarget, uv ).xyz;
+      vec3 toTarget   = targetPos - selfPosition;
+      float distToTgt = length( toTarget );
+
+      // Proportional-approach force: strong when far, gentle when close.
+      // Guard against normalize(vec3(0)) when the boid is exactly at target.
+      if ( distToTgt > 0.01 ) {
+        float homingStrength = 60.0;
+        vec3 homingAccel = normalize( toTarget ) * min( distToTgt * 1.2, homingStrength ) * settlingFactor;
+        velocity += homingAccel * delta;
+      }
+
+      // Arrival damping: tight braking zone so boids approach fast then stop cleanly.
+      float arrivalRadius = 10.0;
+      float maxDamp = mix( 0.08, 0.28, settlingFactor );
+      float dampAmt = ( 1.0 - smoothstep( 0.0, arrivalRadius, distToTgt ) ) * maxDamp;
+      velocity *= ( 1.0 - dampAmt );
+    }
+
+    // ── Speed limit (tightens as settling grows; spring state gets own cap) ──
+    float effectiveLimit = ( appState > 1.5 && appState < 5.5 )
+      ? 5.0
+      : mix( limit, 5.5, settlingFactor * settlingFactor );
+    if ( length( velocity ) > effectiveLimit ) {
+      velocity = normalize( velocity ) * effectiveLimit;
+    }
+
+    // ── Damping / friction ─────────────────────────────────────────────────
+    if ( appState > 1.5 && appState < 5.5 ) {
+      // UTAH_SPRINGS / STAGE / SECTOR / COMPANY_SIZE: overdamped so layout converges without oscillating.
+      velocity *= ( 1.0 - 8.0 * delta );
+      if ( length( velocity ) < 0.08 ) velocity = vec3( 0.0 );
+    } else if ( appState > 0.5 ) {
+      // UTAH_MAP: gentle friction bleeds residual motion once settled
+      velocity *= ( 1.0 - 0.05 * settlingFactor );
+    }
+
+    gl_FragColor = vec4( velocity, 1.0 );
+  }
+</script>
+
+<!-- ─────────────────────────────────────────────────
+     Hexagon vertex shader
+     Billboards each hex to face the camera, with a
+     speed-proportional leaf-flutter wobble.
+──────────────────────────────────────────────────── -->
+<script id="hexVS" type="x-shader/x-vertex">
+  attribute vec2 reference;   // UV into GPGPU textures for this hex
+  attribute float hexVertex;  // 0..17 – vertex index within one hexagon
+  attribute vec3 birdColor;
+
+  uniform sampler2D texturePosition;
+  uniform sampler2D textureVelocity;
+  uniform sampler2D textureSector;  // RGB = sector colour, A = sector ID
+  uniform float sectorBlend;        // 0 = original birdColor, 1 = sector colour
+  uniform sampler2D textureBucket;  // RGB = size-bucket colour, A = bucket ID
+  uniform float bucketBlend;        // 0 = no bucket tint, 1 = bucket colour
+  uniform sampler2D textureStage;   // RGB = stage colour, A = stage ID
+  uniform float stageBlend;         // 0 = no stage tint, 1 = stage colour
+  uniform float time;
+
+  varying vec4 vColor;
+  varying float z;
+
+  void main() {
+    vec4 tmpPos = texture2D( texturePosition, reference );
+    vec3 pos    = tmpPos.xyz;
+    float phase = tmpPos.w;
+
+    vec3 vel   = texture2D( textureVelocity, reference ).xyz;
+    float speed = length( vel );
+    // Normalize to [0,1] against SPEED_LIMIT 9.0; wobble is zero when settled
+    float speedNorm = clamp( speed / 9.0, 0.0, 1.0 );
+
+    // ── Billboard basis from view matrix ──────────────────────────────────
+    // Each row of the view matrix is a world-space camera axis.
+    vec3 camRight = normalize( vec3( viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0] ) );
+    vec3 camUp    = normalize( vec3( viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1] ) );
+    // row 2 points INTO the scene (−camForward by Three.js convention)
+    vec3 camFwd   = normalize( vec3( viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2] ) );
+
+    // ── Leaf-flutter wobble (scales to zero as speed → 0) ────────────────
+    float wobbleAmp = 0.65 * speedNorm;
+    float tiltV = sin( phase * 2.3 ) * wobbleAmp;           // vertical tilt
+    float tiltH = cos( phase * 1.7 ) * wobbleAmp * 0.6;     // horizontal tilt
+
+    vec3 tiltedRight = normalize( camRight + camFwd * tiltH );
+    vec3 tiltedUp    = normalize( camUp    + camFwd * tiltV );
+
+    // ── Billboard transform: place hex vertices around world-space pos ────
+    // position.xy comes from the local hexagon geometry (z = 0 always)
+    vec3 worldPos = pos + tiltedRight * position.x + tiltedUp * position.y;
+
+    z = worldPos.z;
+    vec3 secCol    = texture2D( textureSector, reference ).rgb;
+    vec3 bucketCol = texture2D( textureBucket, reference ).rgb;
+    vec3 stageCol  = texture2D( textureStage,  reference ).rgb;
+    vec3 tinted    = mix( birdColor, secCol,    sectorBlend );
+         tinted    = mix( tinted,    bucketCol, bucketBlend );
+         tinted    = mix( tinted,    stageCol,  stageBlend  );
+    vColor = vec4( tinted, 1.0 );
+    gl_Position = projectionMatrix * viewMatrix * vec4( worldPos, 1.0 );
+  }
+</script>
+
+<!-- ─────────────────────────────────────────────────
+     Hexagon fragment shader
+──────────────────────────────────────────────────── -->
+<script id="hexFS" type="x-shader/x-fragment">
+  varying vec4 vColor;
+  varying float z;
+
+  void main() {
+    // Simple depth-brightening: hexes further from camera appear slightly brighter
+    float depth = 0.35 + clamp( ( 800.0 - z ) / 800.0, 0.0, 1.0 ) * 0.65;
+    gl_FragColor = vec4( vColor.rgb * depth, 1.0 );
+  }
+</script>
+
+<!-- ─────────────────────────────────────────────────
+     Import map – Three.js r184 from CDN
+──────────────────────────────────────────────────── -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TEXTURE_WIDTH  = 32;   // GPGPU texture width
+const TEXTURE_HEIGHT = 16;   // GPGPU texture height
+const BIRDS          = TEXTURE_WIDTH * TEXTURE_HEIGHT; // 512 total boids
+
+const BOUNDS      = 800;
+const BOUNDS_HALF = BOUNDS / 2;
+const HEX_RADIUS  = 4.5;     // local scene units per hexagon half-width
+
+// Settling ramp duration (seconds from button click to fully settled)
+const SETTLE_DURATION = 6;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Application states
+// ─────────────────────────────────────────────────────────────────────────────
+const APP_STATE = { SWARM: 0, UTAH_MAP: 1, UTAH_SPRINGS: 2, STAGE: 3, SECTOR: 4, COMPANY_SIZE: 5, TRANSITION: 6 };
+let currentState = APP_STATE.SWARM;
+
+const SECTORS = [ 'B2B Software', 'Security', 'FinTech', 'Energy', 'Bio/Medical Tech', 'Consumer', 'Marketplaces' ];
+const SECTOR_COUNT = SECTORS.length;
+const SECTOR_COLORS = [
+  [ 0.27, 0.53, 1.00 ], // B2B Software  – blue
+  [ 1.00, 0.27, 0.33 ], // Security      – red
+  [ 0.27, 1.00, 0.53 ], // FinTech       – green
+  [ 1.00, 0.87, 0.00 ], // Energy        – yellow
+  [ 1.00, 0.27, 0.93 ], // Bio/Medical   – magenta
+  [ 0.27, 0.93, 1.00 ], // Consumer      – cyan
+  [ 1.00, 0.53, 0.27 ], // Marketplaces  – orange
+];
+const SECTOR_CSS_COLORS = [ '#4488ff', '#ff4455', '#44ff88', '#ffdd00', '#ff44ee', '#44eeff', '#ff8844' ];
+
+// Company size buckets – DB stores the range string, labels add a friendly prefix
+const BUCKETS       = [ '2-10', '11-50', '51-200', '201-500', '501-1K', '1K-5K' ];
+const BUCKET_LABELS = [ 'Micro 2-10', 'Small 11-50', 'Medium 51-200', 'Mid-Large 201-500', 'Large 501-1K', 'Mega 1K-5K' ];
+const BUCKET_COUNT  = BUCKETS.length;
+const BUCKET_COLORS = [
+  [ 0.60, 0.20, 1.00 ], // Micro      – purple
+  [ 0.27, 0.55, 1.00 ], // Small      – blue
+  [ 0.27, 0.90, 0.60 ], // Medium     – teal-green
+  [ 1.00, 0.85, 0.20 ], // Mid-Large  – yellow
+  [ 1.00, 0.55, 0.15 ], // Large      – orange
+  [ 1.00, 0.25, 0.25 ], // Mega       – red
+];
+const BUCKET_CSS_COLORS = [ '#9933ff', '#448cff', '#44e699', '#ffd933', '#ff8c26', '#ff4040' ];
+
+// VC stages – labels match DB values exactly
+const STAGES = [ 'Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C', 'Series D+', 'Growth', 'IPO' ];
+const STAGE_COUNT = STAGES.length;
+const STAGE_COLORS = [
+  [ 0.65, 0.65, 0.70 ], // Pre-Seed  – silver/gray
+  [ 0.40, 1.00, 0.40 ], // Seed      – lime green
+  [ 0.27, 0.80, 1.00 ], // Series A  – sky blue
+  [ 0.27, 0.40, 1.00 ], // Series B  – royal blue
+  [ 0.65, 0.27, 1.00 ], // Series C  – purple
+  [ 1.00, 0.55, 0.15 ], // Series D+ – orange
+  [ 1.00, 0.35, 0.20 ], // Growth    – deep orange-red
+  [ 1.00, 0.84, 0.00 ], // IPO       – gold
+];
+const STAGE_CSS_COLORS = [ '#a6a6b3', '#66ff66', '#44ccff', '#4466ff', '#a644ff', '#ff8c26', '#ff5933', '#ffd700' ];
+
+function setAppState( newState ) {
+  currentState = newState;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Utah border – corner coordinates
+// All edges travel in order: NW → NE-upper → Elbow → East-central → SE → SW → NW
+// ─────────────────────────────────────────────────────────────────────────────
+const UTAH_CORNERS_LATLON = [
+  [ 42.0000, -114.0506 ], // 1 NW
+  [ 42.0000, -111.0506 ], // 2 NE upper
+  [ 41.0000, -111.0506 ], // 3 Elbow (interior notch)
+  [ 41.0000, -109.0506 ], // 4 East-central (WY/CO/UT)
+  [ 36.9989, -109.0452 ], // 5 SE – Four Corners
+  [ 37.0000, -114.0506 ], // 6 SW
+];
+
+// Scale factor: how many scene units per corrected degree.
+// UTAH_SCALE=80 makes Utah roughly fill the screen vertically at the default camera.
+const UTAH_SCALE = 80;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lat / lon → flat 2-D projection
+// We apply a cos(lat_center) correction so that one degree of longitude and
+// one degree of latitude correspond to the same screen distance.
+// ─────────────────────────────────────────────────────────────────────────────
+const LAT_CENTER = UTAH_CORNERS_LATLON.reduce( ( s, c ) => s + c[0], 0 ) / UTAH_CORNERS_LATLON.length;
+const LON_CENTER = UTAH_CORNERS_LATLON.reduce( ( s, c ) => s + c[1], 0 ) / UTAH_CORNERS_LATLON.length;
+const COS_LAT    = Math.cos( LAT_CENTER * Math.PI / 180 );
+
+function project( lat, lon ) {
+  return [
+    ( lon - LON_CENTER ) * COS_LAT * UTAH_SCALE,
+    ( lat - LAT_CENTER ) * UTAH_SCALE,
+  ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Supabase – company locations
+// ─────────────────────────────────────────────────────────────────────────────
+const SUPABASE_URL      = 'https://lprekbijqpbczqtlyvko.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_nX4-QRSQZyU3ObYf06Rwdg_4yNhqrpk';
+
+async function fetchCompanies() {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/companies?select=latitude,longitude,startup_name,logo_url,sector,employees,stage`,
+      {
+        headers: {
+          'apikey':        SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+    if ( !res.ok ) {
+      console.warn( 'Supabase returned', res.status, '– running outline-only mode' );
+      return [];
+    }
+    const rows = await res.json();
+    return rows.filter( r => r.latitude != null && r.longitude != null );
+  } catch ( e ) {
+    console.warn( 'Supabase fetch failed – running outline-only mode', e );
+    return [];
+  }
+}
+
+/**
+ * Generate `count` evenly-spaced points along Utah's outline polygon.
+ * Edge lengths are measured in the corrected (projected) coordinate space
+ * so that density is visually uniform regardless of orientation.
+ */
+function generateUtahOutlinePoints( count ) {
+  const corners2D = UTAH_CORNERS_LATLON.map( ( [ lat, lon ] ) => project( lat, lon ) );
+
+  // Build edges with their corrected lengths
+  const edges = [];
+  let totalLen = 0;
+  for ( let i = 0; i < corners2D.length; i++ ) {
+    const a   = corners2D[ i ];
+    const b   = corners2D[ ( i + 1 ) % corners2D.length ];
+    const dx  = b[ 0 ] - a[ 0 ];
+    const dy  = b[ 1 ] - a[ 1 ];
+    const len = Math.sqrt( dx * dx + dy * dy );
+    edges.push( { a, b, len } );
+    totalLen += len;
+  }
+
+  // Distribute points proportionally to each edge's length
+  const pts = [];
+  for ( const edge of edges ) {
+    const numOnEdge = Math.max( 1, Math.round( ( edge.len / totalLen ) * count ) );
+    for ( let i = 0; i < numOnEdge; i++ ) {
+      const t = ( i + 0.5 ) / numOnEdge;
+      pts.push( [
+        edge.a[ 0 ] + t * ( edge.b[ 0 ] - edge.a[ 0 ] ),
+        edge.a[ 1 ] + t * ( edge.b[ 1 ] - edge.a[ 1 ] ),
+        0, // formation sits on the z = 0 plane
+      ] );
+    }
+  }
+
+  // Trim or repeat-pad to exactly `count`
+  while ( pts.length > count ) pts.pop();
+  while ( pts.length < count ) pts.push( [ ...pts[ pts.length - 1 ] ] );
+
+  return pts;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hexagon BufferGeometry
+// All BIRDS hexagons packed into a single geometry (same pattern as the
+// original BirdGeometry).  Each hexagon is 6 triangles (fan from centre),
+// 18 vertices total.  The `reference` attribute stores the GPGPU UV for
+// each vertex's owning boid.
+// ─────────────────────────────────────────────────────────────────────────────
+class HexGeometry extends THREE.BufferGeometry {
+  constructor( companyCount = 0 ) {
+    super();
+
+    const TRIS_PER_HEX  = 6;
+    const VERTS_PER_HEX = TRIS_PER_HEX * 3; // 18
+    const totalVerts    = BIRDS * VERTS_PER_HEX;
+
+    const positions  = new Float32Array( totalVerts * 3 );
+    const birdColors = new Float32Array( totalVerts * 3 );
+    const references = new Float32Array( totalVerts * 2 );
+    const hexVertex  = new Float32Array( totalVerts );
+
+    // Pre-compute the 18 local vertices for one flat hexagon (XY plane, z = 0).
+    // Triangle fan: (centre, v_i, v_{i+1}) for i = 0..5
+    const localHex = [];
+    for ( let i = 0; i < 6; i++ ) {
+      const a0 = ( i / 6 ) * Math.PI * 2;
+      const a1 = ( ( i + 1 ) / 6 ) * Math.PI * 2;
+      // centre
+      localHex.push( 0, 0, 0 );
+      // v_i
+      localHex.push( HEX_RADIUS * Math.cos( a0 ), HEX_RADIUS * Math.sin( a0 ), 0 );
+      // v_{i+1}
+      localHex.push( HEX_RADIUS * Math.cos( a1 ), HEX_RADIUS * Math.sin( a1 ), 0 );
+    }
+
+    let vi = 0; // flat vertex counter
+
+    for ( let b = 0; b < BIRDS; b++ ) {
+      // GPGPU texture UV for this boid
+      const bx = b % TEXTURE_WIDTH;
+      const by = Math.floor( b / TEXTURE_WIDTH );
+      const u  = ( bx + 0.5 ) / TEXTURE_WIDTH;
+      const v  = ( by + 0.5 ) / TEXTURE_HEIGHT;
+
+      // Company boids: amber-to-gold gradient. Outline boids: blue-to-teal-to-indigo gradient.
+      const isCompany = b < companyCount;
+      const companyT  = companyCount > 1 ? b / ( companyCount - 1 ) : 0;
+      const col = isCompany
+        ? new THREE.Color().setHSL( 0.10 + companyT * 0.05, 0.95, 0.42 + companyT * 0.20 )
+        : new THREE.Color().setHSL( 0.57 + ( ( b - companyCount ) / Math.max( 1, BIRDS - companyCount ) ) * 0.08, 0.75, 0.45 + ( ( b - companyCount ) / Math.max( 1, BIRDS - companyCount ) ) * 0.25 );
+
+      for ( let hv = 0; hv < VERTS_PER_HEX; hv++ ) {
+        positions[ vi * 3 + 0 ] = localHex[ hv * 3 + 0 ];
+        positions[ vi * 3 + 1 ] = localHex[ hv * 3 + 1 ];
+        positions[ vi * 3 + 2 ] = localHex[ hv * 3 + 2 ];
+
+        birdColors[ vi * 3 + 0 ] = col.r;
+        birdColors[ vi * 3 + 1 ] = col.g;
+        birdColors[ vi * 3 + 2 ] = col.b;
+
+        references[ vi * 2 + 0 ] = u;
+        references[ vi * 2 + 1 ] = v;
+
+        hexVertex[ vi ] = hv;
+        vi++;
+      }
+    }
+
+    this.setAttribute( 'position',  new THREE.BufferAttribute( positions,  3 ) );
+    this.setAttribute( 'birdColor', new THREE.BufferAttribute( birdColors, 3 ) );
+    this.setAttribute( 'reference', new THREE.BufferAttribute( references, 2 ) );
+    this.setAttribute( 'hexVertex', new THREE.BufferAttribute( hexVertex,  1 ) );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scene setup
+// ─────────────────────────────────────────────────────────────────────────────
+let camera, scene, renderer;
+let gpuCompute, velocityVariable, positionVariable;
+let positionUniforms, velocityUniforms, hexUniforms;
+let mouseX = 0, mouseY = 0;
+let mouseClientX = -9999, mouseClientY = -9999;
+let windowHalfX = window.innerWidth  / 2;
+let windowHalfY = window.innerHeight / 2;
+let last              = performance.now();
+let startTime         = null;
+let settlingStartTime = null;
+
+// Company tooltip state
+let companyData            = []; // { startup_name, logoUrl } per company boid
+let cachedCompanyScreenPos = []; // { x, y } screen coords per company boid
+let lastReadbackTime       = 0;
+let lastPosPixels          = null;
+
+// Sector state
+let companySectorIds      = [];  // sector index (0–6) per company boid
+let sectorBlend           = 0.0;
+let sectorBlendTarget     = 0.0;
+let sectorCentroidsWorld  = Array.from( { length: SECTOR_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let sectorLabelEls        = [];
+
+// Company-size bucket state
+let companyBucketIds     = [];  // bucket index (0–5) per company boid
+let bucketBlend          = 0.0;
+let bucketBlendTarget    = 0.0;
+let bucketCentroidsWorld = Array.from( { length: BUCKET_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let bucketLabelEls       = [];
+
+// VC stage state
+let companyStageIds     = [];  // stage index (0–7) per company boid
+let stageBlend          = 0.0;
+let stageBlendTarget    = 0.0;
+let stageCentroidsWorld = Array.from( { length: STAGE_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let stageLabelEls       = [];
+
+const _tmpV3             = new THREE.Vector3();
+
+const BG_COLOR = new THREE.Color( 0x0a0f1e );
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tooltip
+// ─────────────────────────────────────────────────────────────────────────────
+function hexScreenDiameter() {
+  const fov       = camera.fov * Math.PI / 180;
+  const worldHalfH = Math.tan( fov / 2 ) * camera.position.z;
+  return ( HEX_RADIUS * 2 * window.innerHeight / 2 ) / worldHalfH;
+}
+
+function updateTooltip( cx, cy ) {
+  const tooltipEl   = document.getElementById( 'tooltip' );
+  const tooltipLogo = document.getElementById( 'tooltip-logo' );
+  const tooltipName = document.getElementById( 'tooltip-name' );
+
+  if ( cachedCompanyScreenPos.length === 0 ) {
+    tooltipEl.style.display = 'none';
+    return;
+  }
+
+  const hexDiam   = hexScreenDiameter();
+  const threshold = hexDiam * 3;
+
+  let bestIdx = -1, bestDist2 = Infinity;
+  for ( let i = 0; i < cachedCompanyScreenPos.length; i++ ) {
+    const p = cachedCompanyScreenPos[ i ];
+    const dx = p.x - cx, dy = p.y - cy;
+    const d2 = dx * dx + dy * dy;
+    if ( d2 < bestDist2 && Math.sqrt( d2 ) < threshold ) {
+      bestDist2 = d2; bestIdx = i;
+    }
+  }
+
+  if ( bestIdx < 0 ) { tooltipEl.style.display = 'none'; return; }
+
+  const co   = companyData[ bestIdx ];
+  const pos  = cachedCompanyScreenPos[ bestIdx ];
+  const size = Math.round( hexDiam );
+
+  tooltipLogo.style.width  = size + 'px';
+  tooltipLogo.style.height = size + 'px';
+
+  if ( co.logoUrl && tooltipLogo.dataset.loadedSrc !== co.logoUrl ) {
+    tooltipLogo.dataset.loadedSrc = co.logoUrl;
+    tooltipLogo.style.display     = '';
+    tooltipLogo.src               = co.logoUrl;
+    tooltipLogo.onerror           = () => { tooltipLogo.style.display = 'none'; };
+    tooltipLogo.onload            = () => { tooltipLogo.style.display = ''; };
+  } else if ( !co.logoUrl ) {
+    tooltipLogo.style.display = 'none';
+  }
+
+  tooltipName.textContent = co.startup_name;
+  tooltipEl.style.left    = pos.x + 'px';
+  tooltipEl.style.top     = pos.y + 'px';
+  tooltipEl.style.display = 'flex';
+}
+
+init();
+
+async function init() {
+  const container = document.createElement( 'div' );
+  document.body.appendChild( container );
+
+  camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 3000 );
+  camera.position.z = 350;
+
+  scene = new THREE.Scene();
+  scene.background = BG_COLOR;
+  scene.fog = new THREE.Fog( BG_COLOR, 100, 1200 );
+
+  renderer = new THREE.WebGLRenderer( { antialias: true } );
+  renderer.setPixelRatio( window.devicePixelRatio );
+  renderer.setSize( window.innerWidth, window.innerHeight );
+  container.appendChild( renderer.domElement );
+
+  const companies = await fetchCompanies();
+  console.log( `Loaded ${companies.length} companies from Supabase` );
+
+  companyData = companies.slice( 0, BIRDS ).map( c => ( {
+    startup_name: c.startup_name || '',
+    logoUrl:      c.logo_url || '',
+  } ) );
+
+  initGPGPU( companies );
+  initHexMesh( companies.length );
+
+  renderer.setAnimationLoop( animate );
+
+  container.style.touchAction = 'none';
+  container.addEventListener( 'pointermove', onPointerMove );
+  window.addEventListener( 'resize', onWindowResize );
+
+  document.getElementById( 'startBtn' ).addEventListener( 'click', () => {
+    settlingStartTime = performance.now();
+    document.getElementById( 'overlay' ).style.display = 'none';
+    document.getElementById( 'filter-bar' ).style.display = 'flex';
+    setAppState( APP_STATE.UTAH_MAP );
+  } );
+
+  const filterButtons = document.querySelectorAll( '.filter-btn' );
+  const filterStateMap = {
+    'btn-location':     APP_STATE.UTAH_SPRINGS,
+    'btn-sector':       APP_STATE.SECTOR,
+    'btn-company-size': APP_STATE.COMPANY_SIZE,
+    'btn-stage':        APP_STATE.STAGE,
+  };
+
+  filterButtons.forEach( btn => {
+    btn.addEventListener( 'click', () => {
+      const newState = filterStateMap[ btn.id ];
+      if ( currentState === newState ) {
+        btn.classList.remove( 'active' );
+        setAppState( APP_STATE.UTAH_MAP );
+      } else {
+        filterButtons.forEach( b => b.classList.remove( 'active' ) );
+        btn.classList.add( 'active' );
+        setAppState( newState );
+      }
+    } );
+  } );
+
+  // Floating sector labels
+  const sectorContainer = document.getElementById( 'sector-labels' );
+  for ( let s = 0; s < SECTOR_COUNT; s++ ) {
+    const el = document.createElement( 'div' );
+    el.className = 'sector-label-el';
+    el.textContent = SECTORS[ s ];
+    el.style.color = SECTOR_CSS_COLORS[ s ];
+    el.style.borderColor = SECTOR_CSS_COLORS[ s ];
+    sectorContainer.appendChild( el );
+    sectorLabelEls.push( el );
+  }
+
+  // Floating company-size bucket labels (same container, same CSS class)
+  for ( let b = 0; b < BUCKET_COUNT; b++ ) {
+    const el = document.createElement( 'div' );
+    el.className = 'sector-label-el';
+    el.textContent = BUCKET_LABELS[ b ];
+    el.style.color = BUCKET_CSS_COLORS[ b ];
+    el.style.borderColor = BUCKET_CSS_COLORS[ b ];
+    sectorContainer.appendChild( el );
+    bucketLabelEls.push( el );
+  }
+
+  // Floating VC stage labels
+  for ( let s = 0; s < STAGE_COUNT; s++ ) {
+    const el = document.createElement( 'div' );
+    el.className = 'sector-label-el';
+    el.textContent = STAGES[ s ];
+    el.style.color = STAGE_CSS_COLORS[ s ];
+    el.style.borderColor = STAGE_CSS_COLORS[ s ];
+    sectorContainer.appendChild( el );
+    stageLabelEls.push( el );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GPGPU setup
+// ─────────────────────────────────────────────────────────────────────────────
+function initGPGPU( companies ) {
+  gpuCompute = new GPUComputationRenderer( TEXTURE_WIDTH, TEXTURE_HEIGHT, renderer );
+
+  const dtPos = gpuCompute.createTexture();
+  const dtVel = gpuCompute.createTexture();
+  fillPositionTexture( dtPos );
+  fillVelocityTexture( dtVel );
+
+  velocityVariable = gpuCompute.addVariable(
+    'textureVelocity',
+    document.getElementById( 'fragmentShaderVelocity' ).textContent,
+    dtVel
+  );
+  positionVariable = gpuCompute.addVariable(
+    'texturePosition',
+    document.getElementById( 'fragmentShaderPosition' ).textContent,
+    dtPos
+  );
+
+  gpuCompute.setVariableDependencies( velocityVariable, [ positionVariable, velocityVariable ] );
+  gpuCompute.setVariableDependencies( positionVariable, [ positionVariable, velocityVariable ] );
+
+  positionUniforms = positionVariable.material.uniforms;
+  velocityUniforms = velocityVariable.material.uniforms;
+
+  positionUniforms[ 'time'  ] = { value: 0.0 };
+  positionUniforms[ 'delta' ] = { value: 0.0 };
+
+  velocityUniforms[ 'time'                ] = { value: 0.0 };
+  velocityUniforms[ 'delta'               ] = { value: 0.0 };
+  velocityUniforms[ 'separationDistance'  ] = { value: 20.0 };
+  velocityUniforms[ 'alignmentDistance'   ] = { value: 20.0 };
+  velocityUniforms[ 'cohesionDistance'    ] = { value: 20.0 };
+  velocityUniforms[ 'freedomFactor'       ] = { value: 0.75 };
+  velocityUniforms[ 'predator'            ] = { value: new THREE.Vector3() };
+  velocityUniforms[ 'settlingFactor'      ] = { value: 0.0 };
+  velocityUniforms[ 'appState'            ] = { value: APP_STATE.SWARM };
+  velocityUniforms[ 'textureTarget'       ] = { value: buildTargetTexture( companies ) };
+  velocityUniforms[ 'textureNeighbors'    ] = { value: buildNeighborTexture( companies ) };
+
+  // Rest length: sqrt of projected Utah area per company so spacing scales with count
+  const companyCount    = Math.min( companies.length, BIRDS );
+  const UTAH_AREA_APPROX = 311 * 400 * 0.75; // scene-unit² (rect × ~75% fill)
+  const springRestLength = companyCount > 1 ? Math.sqrt( UTAH_AREA_APPROX / companyCount ) : 25;
+  velocityUniforms[ 'springRestLength'    ] = { value: springRestLength };
+  velocityUniforms[ 'textureSector'       ] = { value: buildSectorTexture( companies ) };
+  velocityUniforms[ 'sectorCentroids'     ] = { value: sectorCentroidsWorld };
+  velocityUniforms[ 'textureBucket'       ] = { value: buildBucketTexture( companies ) };
+  velocityUniforms[ 'bucketCentroids'     ] = { value: bucketCentroidsWorld };
+  velocityUniforms[ 'textureStage'        ] = { value: buildStageTexture( companies ) };
+  velocityUniforms[ 'stageCentroids'      ] = { value: stageCentroidsWorld };
+
+  initSectorCentroids( companies );
+  initBucketCentroids( companies );
+  initStageCentroids( companies );
+
+  velocityVariable.material.defines.BOUNDS = BOUNDS.toFixed( 2 );
+
+  velocityVariable.wrapS = THREE.RepeatWrapping;
+  velocityVariable.wrapT = THREE.RepeatWrapping;
+  positionVariable.wrapS = THREE.RepeatWrapping;
+  positionVariable.wrapT = THREE.RepeatWrapping;
+
+  const error = gpuCompute.init();
+  if ( error !== null ) console.error( 'GPUComputationRenderer error:', error );
+}
+
+/**
+ * Build the target DataTexture.
+ * Boids 0..companies.length-1  → projected company GPS positions.
+ * Boids companies.length..BIRDS-1 → Utah outline positions (shuffled).
+ */
+function buildTargetTexture( companies ) {
+  const companyCount = Math.min( companies.length, BIRDS );
+  const outlineCount = BIRDS - companyCount;
+
+  const utahPts = generateUtahOutlinePoints( outlineCount );
+  shuffle( utahPts );
+
+  const data = new Float32Array( BIRDS * 4 );
+
+  // Company boids – each flies to its GPS coordinate.
+  // w=2.0 flags this as a company boid in the velocity shader (reacts to mouse, no anchor lock).
+  for ( let i = 0; i < companyCount; i++ ) {
+    const [ x, y ] = project( companies[ i ].latitude, companies[ i ].longitude );
+    data[ i * 4 + 0 ] = x;
+    data[ i * 4 + 1 ] = y;
+    data[ i * 4 + 2 ] = 0;
+    data[ i * 4 + 3 ] = 2.0;
+  }
+
+  // Outline boids – fill the Utah border.
+  // w=0.0 flags these as outline boids (anchor-locked once settled, mouse-immune).
+  for ( let i = 0; i < outlineCount; i++ ) {
+    const pt = utahPts[ i ] ?? [ 0, 0, 0 ];
+    data[ ( companyCount + i ) * 4 + 0 ] = pt[ 0 ];
+    data[ ( companyCount + i ) * 4 + 1 ] = pt[ 1 ];
+    data[ ( companyCount + i ) * 4 + 2 ] = pt[ 2 ];
+    data[ ( companyCount + i ) * 4 + 3 ] = 0.0;
+  }
+
+  const tex = new THREE.DataTexture(
+    data, TEXTURE_WIDTH, TEXTURE_HEIGHT,
+    THREE.RGBAFormat, THREE.FloatType
+  );
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/**
+ * Build the neighbor DataTexture for UTAH_SPRINGS.
+ * For each company boid, stores the indices of its 3 nearest geographic neighbors
+ * in the RGB channels (float). Computed once from GPS positions — connections are fixed.
+ * Non-company boids get -1 in all channels (no springs).
+ */
+function buildNeighborTexture( companies ) {
+  const companyCount = Math.min( companies.length, BIRDS );
+  const data = new Float32Array( BIRDS * 4 );
+
+  const positions = companies.slice( 0, companyCount ).map( c => project( c.latitude, c.longitude ) );
+
+  for ( let i = 0; i < companyCount; i++ ) {
+    const [ xi, yi ] = positions[ i ];
+
+    const dists = [];
+    for ( let j = 0; j < companyCount; j++ ) {
+      if ( j === i ) continue;
+      const [ xj, yj ] = positions[ j ];
+      dists.push( { j, d: Math.hypot( xi - xj, yi - yj ) } );
+    }
+    dists.sort( ( a, b ) => a.d - b.d );
+
+    data[ i * 4 + 0 ] = dists.length > 0 ? dists[ 0 ].j : -1;
+    data[ i * 4 + 1 ] = dists.length > 1 ? dists[ 1 ].j : -1;
+    data[ i * 4 + 2 ] = dists.length > 2 ? dists[ 2 ].j : -1;
+    data[ i * 4 + 3 ] = 0.0;
+  }
+
+  for ( let i = companyCount; i < BIRDS; i++ ) {
+    data[ i * 4 ] = data[ i * 4 + 1 ] = data[ i * 4 + 2 ] = -1.0;
+    data[ i * 4 + 3 ] = 0.0;
+  }
+
+  const tex = new THREE.DataTexture(
+    data, TEXTURE_WIDTH, TEXTURE_HEIGHT,
+    THREE.RGBAFormat, THREE.FloatType
+  );
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function buildSectorTexture( companies ) {
+  const companyCount = Math.min( companies.length, BIRDS );
+  const data = new Float32Array( BIRDS * 4 );
+
+  companySectorIds = [];
+  for ( let i = 0; i < companyCount; i++ ) {
+    const name = ( companies[ i ].sector || '' ).trim();
+    let sid = SECTORS.indexOf( name );
+    if ( sid < 0 ) sid = 0;
+    companySectorIds.push( sid );
+    const col = SECTOR_COLORS[ sid ];
+    data[ i * 4 + 0 ] = col[ 0 ];
+    data[ i * 4 + 1 ] = col[ 1 ];
+    data[ i * 4 + 2 ] = col[ 2 ];
+    data[ i * 4 + 3 ] = sid;   // sector ID in alpha
+  }
+  for ( let i = companyCount; i < BIRDS; i++ ) {
+    data[ i * 4 + 0 ] = 0.35;
+    data[ i * 4 + 1 ] = 0.47;
+    data[ i * 4 + 2 ] = 0.70;
+    data[ i * 4 + 3 ] = -1.0;
+  }
+
+  const tex = new THREE.DataTexture(
+    data, TEXTURE_WIDTH, TEXTURE_HEIGHT,
+    THREE.RGBAFormat, THREE.FloatType
+  );
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function initSectorCentroids( companies ) {
+  const sums = Array.from( { length: SECTOR_COUNT }, () => ( { x: 0, y: 0, n: 0 } ) );
+  for ( let i = 0; i < companySectorIds.length; i++ ) {
+    const sid = companySectorIds[ i ];
+    if ( sid >= 0 && sid < SECTOR_COUNT && i < companies.length ) {
+      const [ x, y ] = project( companies[ i ].latitude, companies[ i ].longitude );
+      sums[ sid ].x += x; sums[ sid ].y += y; sums[ sid ].n++;
+    }
+  }
+  for ( let s = 0; s < SECTOR_COUNT; s++ ) {
+    if ( sums[ s ].n > 0 )
+      sectorCentroidsWorld[ s ].set( sums[ s ].x / sums[ s ].n, sums[ s ].y / sums[ s ].n );
+  }
+}
+
+function buildBucketTexture( companies ) {
+  const companyCount = Math.min( companies.length, BIRDS );
+  const data = new Float32Array( BIRDS * 4 );
+
+  companyBucketIds = [];
+  for ( let i = 0; i < companyCount; i++ ) {
+    const emp = ( companies[ i ].employees || '' ).trim();
+    let bid = BUCKETS.indexOf( emp );
+    if ( bid < 0 ) bid = 0;
+    companyBucketIds.push( bid );
+    const col = BUCKET_COLORS[ bid ];
+    data[ i * 4 + 0 ] = col[ 0 ];
+    data[ i * 4 + 1 ] = col[ 1 ];
+    data[ i * 4 + 2 ] = col[ 2 ];
+    data[ i * 4 + 3 ] = bid;   // bucket ID in alpha
+  }
+  for ( let i = companyCount; i < BIRDS; i++ ) {
+    data[ i * 4 + 0 ] = 0.35;
+    data[ i * 4 + 1 ] = 0.47;
+    data[ i * 4 + 2 ] = 0.70;
+    data[ i * 4 + 3 ] = -1.0;
+  }
+
+  const tex = new THREE.DataTexture(
+    data, TEXTURE_WIDTH, TEXTURE_HEIGHT,
+    THREE.RGBAFormat, THREE.FloatType
+  );
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function initBucketCentroids( companies ) {
+  const sums = Array.from( { length: BUCKET_COUNT }, () => ( { x: 0, y: 0, n: 0 } ) );
+  for ( let i = 0; i < companyBucketIds.length; i++ ) {
+    const bid = companyBucketIds[ i ];
+    if ( bid >= 0 && bid < BUCKET_COUNT && i < companies.length ) {
+      const [ x, y ] = project( companies[ i ].latitude, companies[ i ].longitude );
+      sums[ bid ].x += x; sums[ bid ].y += y; sums[ bid ].n++;
+    }
+  }
+  for ( let b = 0; b < BUCKET_COUNT; b++ ) {
+    if ( sums[ b ].n > 0 )
+      bucketCentroidsWorld[ b ].set( sums[ b ].x / sums[ b ].n, sums[ b ].y / sums[ b ].n );
+  }
+}
+
+function buildStageTexture( companies ) {
+  const companyCount = Math.min( companies.length, BIRDS );
+  const data = new Float32Array( BIRDS * 4 );
+
+  companyStageIds = [];
+  for ( let i = 0; i < companyCount; i++ ) {
+    const s = ( companies[ i ].stage || '' ).trim();
+    let sid = STAGES.indexOf( s );
+    if ( sid < 0 ) sid = 0;
+    companyStageIds.push( sid );
+    const col = STAGE_COLORS[ sid ];
+    data[ i * 4 + 0 ] = col[ 0 ];
+    data[ i * 4 + 1 ] = col[ 1 ];
+    data[ i * 4 + 2 ] = col[ 2 ];
+    data[ i * 4 + 3 ] = sid;
+  }
+  for ( let i = companyCount; i < BIRDS; i++ ) {
+    data[ i * 4 + 0 ] = 0.35;
+    data[ i * 4 + 1 ] = 0.47;
+    data[ i * 4 + 2 ] = 0.70;
+    data[ i * 4 + 3 ] = -1.0;
+  }
+
+  const tex = new THREE.DataTexture(
+    data, TEXTURE_WIDTH, TEXTURE_HEIGHT,
+    THREE.RGBAFormat, THREE.FloatType
+  );
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function initStageCentroids( companies ) {
+  const sums = Array.from( { length: STAGE_COUNT }, () => ( { x: 0, y: 0, n: 0 } ) );
+  for ( let i = 0; i < companyStageIds.length; i++ ) {
+    const sid = companyStageIds[ i ];
+    if ( sid >= 0 && sid < STAGE_COUNT && i < companies.length ) {
+      const [ x, y ] = project( companies[ i ].latitude, companies[ i ].longitude );
+      sums[ sid ].x += x; sums[ sid ].y += y; sums[ sid ].n++;
+    }
+  }
+  for ( let s = 0; s < STAGE_COUNT; s++ ) {
+    if ( sums[ s ].n > 0 )
+      stageCentroidsWorld[ s ].set( sums[ s ].x / sums[ s ].n, sums[ s ].y / sums[ s ].n );
+  }
+}
+
+function shuffle( arr ) {
+  for ( let i = arr.length - 1; i > 0; i-- ) {
+    const j = Math.floor( Math.random() * ( i + 1 ) );
+    [ arr[ i ], arr[ j ] ] = [ arr[ j ], arr[ i ] ];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hexagon mesh
+// ─────────────────────────────────────────────────────────────────────────────
+function initHexMesh( companyCount ) {
+  const geometry = new HexGeometry( companyCount );
+
+  hexUniforms = {
+    color:           { value: new THREE.Color( 0x4488ff ) },
+    texturePosition: { value: null },
+    textureVelocity: { value: null },
+    textureSector:   { value: velocityUniforms[ 'textureSector' ].value },
+    sectorBlend:     { value: 0.0 },
+    textureBucket:   { value: velocityUniforms[ 'textureBucket' ].value },
+    bucketBlend:     { value: 0.0 },
+    textureStage:    { value: velocityUniforms[ 'textureStage'  ].value },
+    stageBlend:      { value: 0.0 },
+    time:            { value: 0.0 },
+    delta:           { value: 0.0 },
+  };
+
+  const material = new THREE.ShaderMaterial( {
+    uniforms:       hexUniforms,
+    vertexShader:   document.getElementById( 'hexVS' ).textContent,
+    fragmentShader: document.getElementById( 'hexFS' ).textContent,
+    side:           THREE.DoubleSide,
+  } );
+
+  const mesh = new THREE.Mesh( geometry, material );
+  mesh.matrixAutoUpdate = false;
+  mesh.updateMatrix();
+  scene.add( mesh );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Initial GPGPU texture fill
+// ─────────────────────────────────────────────────────────────────────────────
+function fillPositionTexture( tex ) {
+  const arr = tex.image.data;
+  for ( let k = 0; k < arr.length; k += 4 ) {
+    arr[ k + 0 ] = ( Math.random() - 0.5 ) * BOUNDS;
+    arr[ k + 1 ] = ( Math.random() - 0.5 ) * BOUNDS;
+    arr[ k + 2 ] = ( Math.random() - 0.5 ) * BOUNDS;
+    arr[ k + 3 ] = Math.random() * Math.PI * 2; // initial phase
+  }
+}
+
+function fillVelocityTexture( tex ) {
+  const arr = tex.image.data;
+  // Give all boids roughly the same initial heading so they flock together
+  // immediately rather than scattering in random directions.
+  const baseAngle = Math.PI * 0.15; // roughly NE in the XY plane
+  const spread    = 0.35;           // radians of angular spread
+  for ( let k = 0; k < arr.length; k += 4 ) {
+    const angle = baseAngle + ( Math.random() - 0.5 ) * spread;
+    const speed = 7 + Math.random() * 2;
+    arr[ k + 0 ] = Math.cos( angle ) * speed;
+    arr[ k + 1 ] = Math.sin( angle ) * speed;
+    arr[ k + 2 ] = ( Math.random() - 0.5 ) * 2;
+    arr[ k + 3 ] = 1.0;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Event handlers
+// ─────────────────────────────────────────────────────────────────────────────
+function onWindowResize() {
+  windowHalfX = window.innerWidth  / 2;
+  windowHalfY = window.innerHeight / 2;
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize( window.innerWidth, window.innerHeight );
+}
+
+function onPointerMove( e ) {
+  if ( e.isPrimary === false ) return;
+  mouseX       = e.clientX - windowHalfX;
+  mouseY       = e.clientY - windowHalfY;
+  mouseClientX = e.clientX;
+  mouseClientY = e.clientY;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Animation loop
+// ─────────────────────────────────────────────────────────────────────────────
+function animate() {
+  const now = performance.now();
+  if ( startTime === null ) startTime = now;
+
+  let delta = ( now - last ) / 1000;
+  if ( delta > 1 ) delta = 1;
+  last = now;
+
+  // settlingFactor ramps 0 → 1 over SETTLE_DURATION seconds after the button click.
+  // It stays at 0 until the user presses "See Utah Companies".
+  const settlingFactor = settlingStartTime === null ? 0 :
+    Math.max( 0, Math.min( 1, ( now - settlingStartTime ) / ( SETTLE_DURATION * 1000 ) ) );
+
+  positionUniforms[ 'time'  ].value = now;
+  positionUniforms[ 'delta' ].value = delta;
+
+  velocityUniforms[ 'time'           ].value = now;
+  velocityUniforms[ 'delta'          ].value = delta;
+  velocityUniforms[ 'settlingFactor' ].value = settlingFactor;
+  velocityUniforms[ 'appState'       ].value = currentState;
+  velocityUniforms[ 'predator'       ].value.set(
+     0.5 * mouseX / windowHalfX,
+    -0.5 * mouseY / windowHalfY,
+     0
+  );
+
+  hexUniforms[ 'time'  ].value = now;
+  hexUniforms[ 'delta' ].value = delta;
+
+  gpuCompute.compute();
+
+  hexUniforms[ 'texturePosition' ].value =
+    gpuCompute.getCurrentRenderTarget( positionVariable ).texture;
+  hexUniforms[ 'textureVelocity' ].value =
+    gpuCompute.getCurrentRenderTarget( velocityVariable ).texture;
+
+  // Throttled GPU→CPU readback for tooltip hit-testing (~10 fps is plenty)
+  if ( companyData.length > 0 && now - lastReadbackTime > 100 ) {
+    lastReadbackTime = now;
+    const posRT = gpuCompute.getCurrentRenderTarget( positionVariable );
+    lastPosPixels = new Float32Array( TEXTURE_WIDTH * TEXTURE_HEIGHT * 4 );
+    renderer.readRenderTargetPixels( posRT, 0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT, lastPosPixels );
+
+    cachedCompanyScreenPos = companyData.map( ( _, i ) => {
+      const bx = i % TEXTURE_WIDTH;
+      const by = Math.floor( i / TEXTURE_WIDTH );
+      const pi = ( by * TEXTURE_WIDTH + bx ) * 4;
+      const v  = new THREE.Vector3( lastPosPixels[ pi ], lastPosPixels[ pi + 1 ], lastPosPixels[ pi + 2 ] )
+        .project( camera );
+      return {
+        x: ( v.x + 1 ) / 2 * window.innerWidth,
+        y: ( -v.y + 1 ) / 2 * window.innerHeight,
+      };
+    } );
+
+    // Recompute sector centroids in world space from the fresh readback
+    if ( currentState === APP_STATE.SECTOR && lastPosPixels ) {
+      const sums = Array.from( { length: SECTOR_COUNT }, () => ( { x: 0, y: 0, n: 0 } ) );
+      for ( let i = 0; i < companySectorIds.length; i++ ) {
+        const sid = companySectorIds[ i ];
+        if ( sid >= 0 && sid < SECTOR_COUNT ) {
+          const bx = i % TEXTURE_WIDTH;
+          const by = Math.floor( i / TEXTURE_WIDTH );
+          const pi = ( by * TEXTURE_WIDTH + bx ) * 4;
+          sums[ sid ].x += lastPosPixels[ pi ];
+          sums[ sid ].y += lastPosPixels[ pi + 1 ];
+          sums[ sid ].n++;
+        }
+      }
+      for ( let s = 0; s < SECTOR_COUNT; s++ ) {
+        if ( sums[ s ].n > 0 )
+          sectorCentroidsWorld[ s ].set( sums[ s ].x / sums[ s ].n, sums[ s ].y / sums[ s ].n );
+      }
+    }
+
+    // Recompute VC-stage centroids in world space from the fresh readback
+    if ( currentState === APP_STATE.STAGE && lastPosPixels ) {
+      const sums = Array.from( { length: STAGE_COUNT }, () => ( { x: 0, y: 0, n: 0 } ) );
+      for ( let i = 0; i < companyStageIds.length; i++ ) {
+        const sid = companyStageIds[ i ];
+        if ( sid >= 0 && sid < STAGE_COUNT ) {
+          const bx = i % TEXTURE_WIDTH;
+          const by = Math.floor( i / TEXTURE_WIDTH );
+          const pi = ( by * TEXTURE_WIDTH + bx ) * 4;
+          sums[ sid ].x += lastPosPixels[ pi ];
+          sums[ sid ].y += lastPosPixels[ pi + 1 ];
+          sums[ sid ].n++;
+        }
+      }
+      for ( let s = 0; s < STAGE_COUNT; s++ ) {
+        if ( sums[ s ].n > 0 )
+          stageCentroidsWorld[ s ].set( sums[ s ].x / sums[ s ].n, sums[ s ].y / sums[ s ].n );
+      }
+    }
+
+    // Recompute size-bucket centroids in world space from the fresh readback
+    if ( currentState === APP_STATE.COMPANY_SIZE && lastPosPixels ) {
+      const sums = Array.from( { length: BUCKET_COUNT }, () => ( { x: 0, y: 0, n: 0 } ) );
+      for ( let i = 0; i < companyBucketIds.length; i++ ) {
+        const bid = companyBucketIds[ i ];
+        if ( bid >= 0 && bid < BUCKET_COUNT ) {
+          const bx = i % TEXTURE_WIDTH;
+          const by = Math.floor( i / TEXTURE_WIDTH );
+          const pi = ( by * TEXTURE_WIDTH + bx ) * 4;
+          sums[ bid ].x += lastPosPixels[ pi ];
+          sums[ bid ].y += lastPosPixels[ pi + 1 ];
+          sums[ bid ].n++;
+        }
+      }
+      for ( let b = 0; b < BUCKET_COUNT; b++ ) {
+        if ( sums[ b ].n > 0 )
+          bucketCentroidsWorld[ b ].set( sums[ b ].x / sums[ b ].n, sums[ b ].y / sums[ b ].n );
+      }
+    }
+  }
+
+  // Colour blend ramps + label positioning (every frame)
+  sectorBlendTarget = ( currentState === APP_STATE.SECTOR       ) ? 1.0 : 0.0;
+  bucketBlendTarget = ( currentState === APP_STATE.COMPANY_SIZE ) ? 1.0 : 0.0;
+  stageBlendTarget  = ( currentState === APP_STATE.STAGE        ) ? 1.0 : 0.0;
+  sectorBlend += ( sectorBlendTarget - sectorBlend ) * Math.min( 1.0, delta * 2.0 );
+  bucketBlend += ( bucketBlendTarget - bucketBlend ) * Math.min( 1.0, delta * 2.0 );
+  stageBlend  += ( stageBlendTarget  - stageBlend  ) * Math.min( 1.0, delta * 2.0 );
+  hexUniforms[ 'sectorBlend' ].value = sectorBlend;
+  hexUniforms[ 'bucketBlend' ].value = bucketBlend;
+  hexUniforms[ 'stageBlend'  ].value = stageBlend;
+
+  for ( let s = 0; s < sectorLabelEls.length; s++ ) {
+    const el = sectorLabelEls[ s ];
+    if ( currentState === APP_STATE.SECTOR ) {
+      const wc = sectorCentroidsWorld[ s ];
+      _tmpV3.set( wc.x, wc.y, 0 ).project( camera );
+      el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
+      el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
+      el.classList.add( 'visible' );
+    } else {
+      el.classList.remove( 'visible' );
+    }
+  }
+
+  for ( let b = 0; b < bucketLabelEls.length; b++ ) {
+    const el = bucketLabelEls[ b ];
+    if ( currentState === APP_STATE.COMPANY_SIZE ) {
+      const wc = bucketCentroidsWorld[ b ];
+      _tmpV3.set( wc.x, wc.y, 0 ).project( camera );
+      el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
+      el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
+      el.classList.add( 'visible' );
+    } else {
+      el.classList.remove( 'visible' );
+    }
+  }
+
+  for ( let s = 0; s < stageLabelEls.length; s++ ) {
+    const el = stageLabelEls[ s ];
+    if ( currentState === APP_STATE.STAGE ) {
+      const wc = stageCentroidsWorld[ s ];
+      _tmpV3.set( wc.x, wc.y, 0 ).project( camera );
+      el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
+      el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
+      el.classList.add( 'visible' );
+    } else {
+      el.classList.remove( 'visible' );
+    }
+  }
+
+  updateTooltip( mouseClientX, mouseClientY );
+
+  renderer.render( scene, camera );
+}
+</script>
+</body>
+</html>

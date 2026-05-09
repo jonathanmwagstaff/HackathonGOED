@@ -812,6 +812,10 @@
   uniform float scatterMode;       // same group encoding: 1=sector,2=stage,3=bucket,4=neighborhood
   uniform vec3  scatterDirs[8];    // one random 3-D unit direction per group
 
+  // Map pan / zoom (UTAH_MAP only)
+  uniform float viewScale;   // zoom level — 1.0 = no zoom
+  uniform vec2  viewOffset;  // pan offset in scene units
+
   // Boids flee their cluster's floating label — radius sized to label screen footprint (~150×30 px)
   const float LABEL_REPEL_RADIUS = 35.0;
   const float LABEL_REPEL_STR    = 200.0;
@@ -1133,6 +1137,10 @@
       && !( appState > 1.5 && appState < 5.5 && isCompany > 0.5 );
     if ( shouldHome ) {
       vec3 targetPos  = texture2D( textureTarget, uv ).xyz;
+      // In UTAH_MAP state apply pan/zoom so boids move to their zoomed positions
+      if ( abs( appState - 1.0 ) < 0.5 ) {
+        targetPos.xy = targetPos.xy * viewScale + viewOffset;
+      }
       vec3 toTarget   = targetPos - selfPosition;
       float distToTgt = length( toTarget );
 
@@ -2033,6 +2041,27 @@ let last              = performance.now();
 let startTime         = null;
 let settlingStartTime = null;
 
+// Map pan / zoom state (UTAH_MAP only)
+let viewScale  = 1.0;
+const VIEW_SCALE_MIN = 0.9;
+const VIEW_SCALE_MAX = 8.0;
+let viewOffset = new THREE.Vector2( 0, 0 );
+let _panActive = false;
+let _panStartClient = null;
+let _panStartOffset = null;
+let _panMoved = false;
+
+// Convert a client (pixel) position to scene units at z=0
+function clientToScene( cx, cy ) {
+  const fov        = 75 * Math.PI / 180;
+  const halfH      = Math.tan( fov / 2 ) * 350;   // camera.fov=75, camera.z=350
+  const halfW      = halfH * ( window.innerWidth / window.innerHeight );
+  return new THREE.Vector2(
+     ( cx / window.innerWidth  - 0.5 ) * 2 * halfW,
+    -( cy / window.innerHeight - 0.5 ) * 2 * halfH
+  );
+}
+
 // Company tooltip + card state
 let companyData            = []; // { startup_name, logoUrl, sector, employees, stage, neighborhood, description }
 let cachedCompanyScreenPos = []; // { x, y } screen coords per company boid
@@ -2258,6 +2287,47 @@ async function init() {
   container.style.touchAction = 'none';
   container.addEventListener( 'pointermove', onPointerMove );
   container.addEventListener( 'click', onCanvasClick );
+
+  // ── Map pan / zoom (UTAH_MAP only) ────────────────────────────────────────
+  container.addEventListener( 'wheel', e => {
+    if ( currentState !== APP_STATE.UTAH_MAP ) return;
+    e.preventDefault();
+    const factor   = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const newScale = Math.max( VIEW_SCALE_MIN, Math.min( VIEW_SCALE_MAX, viewScale * factor ) );
+    const cursor   = clientToScene( e.clientX, e.clientY );
+    // Scene point under cursor (in unzoomed boid coords): T = (cursor - offset) / oldScale
+    const tx = ( cursor.x - viewOffset.x ) / viewScale;
+    const ty = ( cursor.y - viewOffset.y ) / viewScale;
+    // Keep that scene point fixed: newOffset = cursor - T * newScale
+    viewOffset.x = cursor.x - tx * newScale;
+    viewOffset.y = cursor.y - ty * newScale;
+    viewScale    = newScale;
+  }, { passive: false } );
+
+  container.addEventListener( 'pointerdown', e => {
+    if ( currentState !== APP_STATE.UTAH_MAP || e.button !== 0 ) return;
+    _panActive      = true;
+    _panMoved       = false;
+    _panStartClient = { x: e.clientX, y: e.clientY };
+    _panStartOffset = viewOffset.clone();
+  } );
+
+  container.addEventListener( 'pointermove', e => {
+    if ( !_panActive ) return;
+    const dx = e.clientX - _panStartClient.x;
+    const dy = e.clientY - _panStartClient.y;
+    if ( Math.sqrt( dx * dx + dy * dy ) > 4 ) _panMoved = true;
+    if ( _panMoved ) {
+      const scene0 = clientToScene( 0, 0 );
+      const scene1 = clientToScene( dx, dy );
+      viewOffset.x = _panStartOffset.x + ( scene1.x - scene0.x );
+      viewOffset.y = _panStartOffset.y + ( scene1.y - scene0.y );
+    }
+  } );
+
+  container.addEventListener( 'pointerup', () => {
+    _panActive = false;
+  } );
   window.addEventListener( 'resize', onWindowResize );
 
   document.getElementById( 'startBtn' ).addEventListener( 'click', () => {
@@ -2448,6 +2518,8 @@ function initGPGPU( companies ) {
   velocityUniforms[ 'scatterStrength'             ] = { value: 0.0 };
   velocityUniforms[ 'scatterMode'                 ] = { value: 1.0 };
   velocityUniforms[ 'scatterDirs'                 ] = { value: Array.from( { length: 8 }, () => new THREE.Vector3() ) };
+  velocityUniforms[ 'viewScale'                   ] = { value: 1.0 };
+  velocityUniforms[ 'viewOffset'                  ] = { value: new THREE.Vector2( 0, 0 ) };
 
   initSectorCentroids( companies );
   initBucketCentroids( companies );
@@ -3145,6 +3217,7 @@ function onPointerMove( e ) {
 }
 
 function onCanvasClick( e ) {
+  if ( _panMoved ) { _panMoved = false; return; }
   const cx = e.clientX, cy = e.clientY;
   const hexDiam = hexScreenDiameter();
 
@@ -3333,6 +3406,8 @@ function animate() {
   velocityUniforms[ 'delta'          ].value = delta;
   velocityUniforms[ 'settlingFactor' ].value = settlingFactor;
   velocityUniforms[ 'appState'       ].value = currentState;
+  velocityUniforms[ 'viewScale'      ].value = viewScale;
+  velocityUniforms[ 'viewOffset'     ].value.copy( viewOffset );
   velocityUniforms[ 'predator'       ].value.set(
      0.5 * mouseX / windowHalfX,
     -0.5 * mouseY / windowHalfY,

@@ -2352,6 +2352,8 @@ async function init() {
     filterButtons.forEach( b => b.classList.remove( 'active' ) );
     mapViewBtn.classList.add( 'active' );
     if ( _scatterRafId !== null ) { cancelAnimationFrame( _scatterRafId ); _scatterRafId = null; velocityUniforms[ 'scatterStrength' ].value = 0.0; }
+    viewScale = 1.0;
+    viewOffset.set( 0, 0 );
     setAppState( APP_STATE.UTAH_MAP );
   } );
 

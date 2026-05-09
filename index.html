@@ -13,6 +13,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
   <title>Hexagon Boids – Utah Formation</title>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { overflow: hidden; background: #0a0f1e; }
@@ -107,11 +108,12 @@
     }
     #filter-bar {
       position: fixed;
-      bottom: 36px;
-      left: 50%;
-      transform: translateX(-50%);
+      top: 50%;
+      left: 28px;
+      transform: translateY(-50%);
       display: none;
-      align-items: center;
+      flex-direction: column;
+      align-items: flex-start;
       gap: 10px;
       z-index: 10;
     }
@@ -122,10 +124,57 @@
       color: rgba(226,232,240,0.45);
       text-transform: uppercase;
       letter-spacing: 0.12em;
+      margin-bottom: 4px;
+    }
+    #secondary-filter {
+      display: none;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 7px;
+      margin-top: 2px;
+      padding-left: 18px;
+      border-left: 1px solid rgba(226,232,240,0.18);
+    }
+    #secondary-filter.visible {
+      display: flex;
+    }
+    .secondary-filter-label {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 9px;
+      font-weight: 700;
+      color: rgba(226,232,240,0.32);
+      text-transform: uppercase;
+      letter-spacing: 0.13em;
+      margin-bottom: 2px;
+    }
+    .secondary-btn {
+      background: rgba(10,15,30,0.72);
+      border: 1px solid rgba(226,232,240,0.22);
+      color: rgba(226,232,240,0.75);
+      padding: 9px 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: system-ui, -apple-system, sans-serif;
+      letter-spacing: 0.05em;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+      backdrop-filter: blur(6px);
+    }
+    .secondary-btn:hover {
+      background: rgba(255,255,255,0.10);
+      border-color: rgba(255,255,255,0.55);
+      color: #ffffff;
+    }
+    .secondary-btn.active {
+      background: rgba(255,255,255,0.16);
+      border-color: #ffffff;
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(255,255,255,0.18);
     }
     .filter-btn {
       background: rgba(10,15,30,0.72);
-      border: 1px solid rgba(184,134,11,0.35);
+      border: 1px solid rgba(226,232,240,0.22);
       color: rgba(226,232,240,0.75);
       padding: 9px 20px;
       font-size: 0.8rem;
@@ -138,15 +187,38 @@
       backdrop-filter: blur(6px);
     }
     .filter-btn:hover {
-      background: rgba(184,134,11,0.18);
-      border-color: rgba(255,215,0,0.65);
-      color: #ffd700;
+      background: rgba(255,255,255,0.10);
+      border-color: rgba(255,255,255,0.55);
+      color: #ffffff;
     }
     .filter-btn.active {
-      background: rgba(184,134,11,0.28);
-      border-color: #ffd700;
-      color: #ffd700;
-      box-shadow: 0 0 14px rgba(255,215,0,0.22);
+      background: rgba(255,255,255,0.16);
+      border-color: #ffffff;
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(255,255,255,0.18);
+    }
+    #selection-breadcrumb {
+      position: fixed;
+      top: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      z-index: 15;
+      pointer-events: none;
+    }
+    .bc-tag {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 5px 18px;
+      border-radius: 20px;
+      border: 1.5px solid;
+      background: rgba(10,15,30,0.72);
+      backdrop-filter: blur(6px);
+      white-space: nowrap;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9);
     }
     #sector-labels {
       position: fixed;
@@ -165,12 +237,368 @@
       border: 1.5px solid;
       white-space: nowrap;
       opacity: 0;
-      transition: opacity 0.5s ease;
+      transition: opacity 0.5s ease, color 2s ease, border-color 2s ease;
       text-shadow: 0 1px 4px rgba(0,0,0,0.9);
       backdrop-filter: blur(4px);
       background: rgba(10,15,30,0.72);
     }
-    .sector-label-el.visible { opacity: 1; }
+    .sector-label-el.dimmed {
+      color: rgba(88, 121, 168, 0.55) !important;
+      border-color: rgba(88, 121, 168, 0.30) !important;
+    }
+    .sector-label-el.visible {
+      opacity: 1;
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .sector-label-el.visible:hover,
+    .sector-label-el.hovered {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.55) !important;
+      color: rgba(255,255,255,0.88) !important;
+      box-shadow: 0 0 10px rgba(255,255,255,0.18);
+      transition: opacity 0.5s ease !important; /* override the 2s color ramp — hover must be instant */
+    }
+    .sector-label-el.selected {
+      background: rgba(255,255,255,0.16) !important;
+      border-color: #ffffff !important;
+      color: #ffffff !important;
+      box-shadow: 0 0 18px rgba(255,255,255,0.30) !important;
+    }
+    #company-card {
+      position: fixed;
+      right: 24px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 187px;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 20;
+      background: rgba(10,15,30,0.90);
+      border: 1.5px solid rgba(255,215,0,0.35);
+      border-radius: 12px;
+      padding: 20px 20px 20px 20px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 0 50px rgba(0,0,0,0.7), 0 0 24px rgba(255,215,0,0.07);
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #e2e8f0;
+    }
+    #company-card.visible { display: flex; }
+    #card-close {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      background: none;
+      border: none;
+      color: rgba(226,232,240,0.45);
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color 0.15s ease;
+    }
+    #card-close:hover { color: #e2e8f0; }
+    #card-name-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding-right: 22px;
+    }
+    #card-inline-logo {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1.5px solid rgba(255,215,0,0.6);
+      background: rgba(10,15,30,0.9);
+      flex-shrink: 0;
+    }
+    #card-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #ffd700;
+      line-height: 1.25;
+    }
+    .card-row { display: flex; flex-direction: column; gap: 2px; }
+    .card-row-pair { display: flex; gap: 10px; }
+    .card-row-pair .card-row { flex: 1; min-width: 0; }
+    .card-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.13em;
+      color: rgba(226,232,240,0.38);
+    }
+    .card-value {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: rgba(226,232,240,0.88);
+    }
+    #card-description {
+      font-size: 0.78rem;
+      color: rgba(226,232,240,0.65);
+      line-height: 1.55;
+      border-top: 1px solid rgba(255,215,0,0.14);
+      padding-top: 10px;
+    }
+    #crook-logo {
+      position: fixed;
+      display: none;
+      z-index: 15;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    #crook-logo.visible { display: flex; }
+    #crook-name {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      font-weight: 900;
+      color: #ffd700;
+      background: rgba(10,15,30,0.82);
+      padding: 3px 10px;
+      border-radius: 4px;
+      white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    }
+    #crook-logo img {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2.5px solid rgba(255,215,0,0.75);
+      background: rgba(10,15,30,0.92);
+      box-shadow: 0 0 28px rgba(255,215,0,0.28), 0 4px 20px rgba(0,0,0,0.6);
+    }
+    #card-links {
+      display: none;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,215,0,0.14);
+    }
+    #card-links.visible { display: flex; }
+    #card-website-link {
+      flex: 1;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: rgba(100,160,255,0.85);
+      text-decoration: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #card-website-link:hover { color: #64a0ff; text-decoration: underline; }
+    #card-linkedin-link {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 5px;
+      background: #0077b5;
+      transition: background 0.15s ease;
+      text-decoration: none;
+    }
+    #card-linkedin-link:hover { background: #005f93; }
+    #card-linkedin-link svg { display: block; }
+    #card-edit-btn {
+      margin-top: 6px;
+      padding: 9px 0;
+      width: 100%;
+      background: rgba(255,215,0,0.08);
+      border: 1.5px solid rgba(255,215,0,0.35);
+      color: #ffd700;
+      font-size: 0.78rem;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: system-ui, -apple-system, sans-serif;
+      letter-spacing: 0.07em;
+      transition: background 0.15s ease, border-color 0.15s ease;
+      text-transform: uppercase;
+    }
+    #card-edit-btn:hover {
+      background: rgba(255,215,0,0.18);
+      border-color: rgba(255,215,0,0.7);
+    }
+
+    /* ── Edit modal ───────────────────────────────────────────────── */
+    #edit-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    #edit-modal-overlay.visible { display: flex; }
+    #edit-modal {
+      background: #0d1428;
+      border: 1.5px solid rgba(255,215,0,0.35);
+      border-radius: 14px;
+      padding: 28px 28px 24px;
+      width: 360px;
+      max-width: 92vw;
+      max-height: 88vh;
+      overflow-y: auto;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #e2e8f0;
+      position: relative;
+      box-shadow: 0 0 80px rgba(0,0,0,0.85), 0 0 30px rgba(255,215,0,0.07);
+    }
+    #edit-modal h3 {
+      color: #ffd700;
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 0 0 6px;
+      padding-right: 28px;
+    }
+    #edit-modal p {
+      color: rgba(226,232,240,0.55);
+      font-size: 0.8rem;
+      margin: 0 0 20px;
+      line-height: 1.5;
+    }
+    .modal-close {
+      position: absolute;
+      top: 12px; right: 14px;
+      background: none;
+      border: none;
+      color: rgba(226,232,240,0.4);
+      font-size: 22px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .modal-close:hover { color: #e2e8f0; }
+    .modal-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .modal-field label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.13em;
+      color: rgba(226,232,240,0.38);
+    }
+    .email-row { display: flex; align-items: stretch; }
+    .email-row input {
+      flex: 1;
+      min-width: 0;
+      background: rgba(255,255,255,0.06);
+      border: 1.5px solid rgba(255,255,255,0.15);
+      border-right: none;
+      border-radius: 6px 0 0 6px;
+      color: #e2e8f0;
+      font-size: 0.88rem;
+      padding: 10px 12px;
+      font-family: system-ui, -apple-system, sans-serif;
+      outline: none;
+    }
+    .email-row input:focus { border-color: rgba(255,215,0,0.5); }
+    .email-domain-suffix {
+      background: rgba(255,215,0,0.07);
+      border: 1.5px solid rgba(255,215,0,0.25);
+      border-radius: 0 6px 6px 0;
+      color: rgba(255,215,0,0.75);
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 10px 12px;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+    }
+    .modal-input {
+      background: rgba(255,255,255,0.06);
+      border: 1.5px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 0.88rem;
+      padding: 10px 12px;
+      font-family: system-ui, -apple-system, sans-serif;
+      outline: none;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .modal-input:focus { border-color: rgba(255,215,0,0.5); }
+    .modal-select {
+      background: rgba(255,255,255,0.06);
+      border: 1.5px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 0.88rem;
+      padding: 10px 12px;
+      font-family: system-ui, -apple-system, sans-serif;
+      outline: none;
+      width: 100%;
+      box-sizing: border-box;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(226,232,240,0.45)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    .modal-select:focus { border-color: rgba(255,215,0,0.5); }
+    .modal-select option { background: #0d1428; color: #e2e8f0; }
+    .modal-textarea {
+      background: rgba(255,255,255,0.06);
+      border: 1.5px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      padding: 10px 12px;
+      font-family: system-ui, -apple-system, sans-serif;
+      outline: none;
+      width: 100%;
+      box-sizing: border-box;
+      resize: vertical;
+      min-height: 72px;
+      line-height: 1.5;
+    }
+    .modal-textarea:focus { border-color: rgba(255,215,0,0.5); }
+    .modal-btn {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #b8860b, #ffd700);
+      color: #0a0f1e;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: system-ui, -apple-system, sans-serif;
+      letter-spacing: 0.05em;
+      transition: opacity 0.15s ease;
+      margin-top: 4px;
+    }
+    .modal-btn:hover { opacity: 0.88; }
+    .modal-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .modal-error   { color: #ff6b6b; font-size: 0.78rem; margin-top: 10px; display: none; }
+    .modal-success { color: #44ff88; font-size: 0.78rem; margin-top: 10px; display: none; }
+    .code-input { text-align: center; letter-spacing: 0.45em; font-size: 1.8rem; font-weight: 700; }
+    .modal-link-btn {
+      background: none;
+      border: none;
+      color: rgba(226,232,240,0.4);
+      font-size: 0.78rem;
+      cursor: pointer;
+      font-family: system-ui, sans-serif;
+      margin-top: 10px;
+      display: block;
+      width: 100%;
+      text-align: center;
+      padding: 4px;
+    }
+    .modal-link-btn:hover { color: rgba(226,232,240,0.75); }
   </style>
 </head>
 <body>
@@ -187,10 +615,164 @@
   <span class="filter-label">Filter</span>
   <button class="filter-btn" id="btn-location">Location</button>
   <button class="filter-btn" id="btn-sector">Sector</button>
-  <button class="filter-btn" id="btn-company-size">Company Size</button>
+  <button class="filter-btn" id="btn-company-size">Headcount</button>
   <button class="filter-btn" id="btn-stage">Stage</button>
+  <div id="secondary-filter">
+    <span class="secondary-filter-label">Secondary Filter</span>
+    <button class="secondary-btn" id="sec-btn-location">Location</button>
+    <button class="secondary-btn" id="sec-btn-sector">Sector</button>
+    <button class="secondary-btn" id="sec-btn-company-size">Headcount</button>
+    <button class="secondary-btn" id="sec-btn-stage">Stage</button>
+  </div>
+</div>
+<div id="selection-breadcrumb">
+  <span id="bc-primary"   class="bc-tag" style="display:none"></span>
+  <span id="bc-secondary" class="bc-tag" style="display:none"></span>
 </div>
 <div id="sector-labels"></div>
+<div id="company-card">
+  <button id="card-close">&times;</button>
+  <div id="card-name-row">
+    <img id="card-inline-logo" src="" alt="">
+    <div id="card-name"></div>
+  </div>
+  <div class="card-row">
+    <span class="card-label">Location</span>
+    <span class="card-value" id="card-location"></span>
+  </div>
+  <div class="card-row">
+    <span class="card-label">Sector</span>
+    <span class="card-value" id="card-sector"></span>
+  </div>
+  <div class="card-row-pair">
+    <div class="card-row">
+      <span class="card-label">Headcount</span>
+      <span class="card-value" id="card-headcount"></span>
+    </div>
+    <div class="card-row">
+      <span class="card-label">Stage</span>
+      <span class="card-value" id="card-stage"></span>
+    </div>
+  </div>
+  <div id="card-description"></div>
+  <div id="card-links">
+    <a id="card-website-link" href="#" target="_blank" rel="noopener">Website</a>
+    <a id="card-linkedin-link" href="#" target="_blank" rel="noopener" title="LinkedIn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+      </svg>
+    </a>
+  </div>
+  <button id="card-edit-btn" style="display:none">Update / Edit</button>
+</div>
+<div id="crook-logo">
+  <span id="crook-name"></span>
+  <img id="crook-logo-img" src="" alt="Company logo">
+</div>
+<!-- ── Edit / verification modal ───────────────────────────────────────── -->
+<div id="edit-modal-overlay">
+  <div id="edit-modal">
+    <button class="modal-close" id="modal-close-btn">&times;</button>
+
+    <!-- Step 1: email entry -->
+    <div id="modal-step-1">
+      <h3>Update Company Info</h3>
+      <p>Enter your work email to receive a verification code.</p>
+      <div class="modal-field">
+        <label>Company Email</label>
+        <div class="email-row">
+          <input type="text" id="email-prefix-input" placeholder="you" autocomplete="off" spellcheck="false">
+          <span class="email-domain-suffix" id="email-domain-display">@company.com</span>
+        </div>
+      </div>
+      <button class="modal-btn" id="send-code-btn">Send Verification Code</button>
+      <div class="modal-error" id="step1-error"></div>
+    </div>
+
+    <!-- Step 2: code entry -->
+    <div id="modal-step-2" style="display:none">
+      <h3>Check Your Inbox</h3>
+      <p id="step2-desc">We sent a 6-digit code to your email.</p>
+      <div class="modal-field">
+        <label>Verification Code</label>
+        <input type="text" class="modal-input code-input" id="code-input" maxlength="6" placeholder="000000" autocomplete="off">
+      </div>
+      <button class="modal-btn" id="verify-code-btn">Verify Code</button>
+      <div class="modal-error" id="step2-error"></div>
+      <button class="modal-link-btn" id="resend-code-btn">Resend code</button>
+    </div>
+
+    <!-- Step 3: edit form -->
+    <div id="modal-step-3" style="display:none">
+      <h3>Update Company Info</h3>
+      <div class="modal-field">
+        <label>Company Name</label>
+        <input type="text" class="modal-input" id="edit-name" autocomplete="off">
+      </div>
+      <div class="modal-field">
+        <label>Sector</label>
+        <select class="modal-select" id="edit-sector">
+          <option value="">— Select —</option>
+          <option>B2B Software</option>
+          <option>Security</option>
+          <option>FinTech</option>
+          <option>Energy</option>
+          <option>Bio/Medical Tech</option>
+          <option>Consumer</option>
+          <option>Marketplaces</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Stage</label>
+        <select class="modal-select" id="edit-stage">
+          <option value="">— Select —</option>
+          <option>Pre-Seed</option>
+          <option>Seed</option>
+          <option>Series A</option>
+          <option>Series B</option>
+          <option>Series C</option>
+          <option>Series D+</option>
+          <option>Growth</option>
+          <option>IPO</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Headcount</label>
+        <select class="modal-select" id="edit-employees">
+          <option value="">— Select —</option>
+          <option>2-10</option>
+          <option>11-50</option>
+          <option>51-200</option>
+          <option>201-500</option>
+          <option>501-1K</option>
+          <option>1K-5K</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Location</label>
+        <select class="modal-select" id="edit-neighborhood">
+          <option value="">— Select —</option>
+          <option>Salt Lake City</option>
+          <option>SL County South</option>
+          <option>Point of Mountain</option>
+          <option>Utah County</option>
+          <option>Park City</option>
+          <option>Ogden</option>
+          <option>Davis County</option>
+          <option>St. George</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Description</label>
+        <textarea class="modal-textarea" id="edit-description"></textarea>
+      </div>
+      <button class="modal-btn" id="save-edit-btn">Save Changes</button>
+      <div class="modal-error"   id="step3-error"></div>
+      <div class="modal-success" id="step3-success"></div>
+    </div>
+  </div>
+</div>
+
 <div id="attr">
   <a href="attribution.html" target="_blank">Attribution</a>
 </div>
@@ -251,6 +833,12 @@
   uniform sampler2D textureNeighborhood;      // RGB = neighborhood colour, A = neighborhood ID (0-7, -1 = non-company)
   uniform vec2 neighborhoodCentroids[8];      // world-space centroid per neighborhood
   uniform vec2 neighborhoodLabelPositions[8]; // world-space label position per neighborhood (Location filter)
+  uniform float selectionGroupId;  // -1 = no subgroup selected; else selected group ID
+  uniform float selectionMode;     // 0=none, 1=sector, 2=stage, 3=bucket, 4=neighborhood
+  uniform float selectionRamp;     // 0=no effect → 1=full effect, ramped over 2 s
+  uniform float secondaryGroupId;  // -1 = no secondary subgroup; else secondary group ID
+  uniform float secondaryMode;     // same encoding as selectionMode
+  uniform float secondaryRamp;     // 0→1 ramp for secondary subgroup selection
 
   // Boids flee their cluster's floating label — radius sized to label screen footprint (~150×30 px)
   const float LABEL_REPEL_RADIUS = 35.0;
@@ -283,6 +871,31 @@
 
     // w=2.0 → company boid (reacts to mouse); w=0.0 → outline boid (locks in place)
     float isCompany = step( 1.5, texture2D( textureTarget, uv ).w );
+
+    // Per-boid scale factor from subgroup selection (1.5× selected, 0.5× unselected), ramped over 2 s
+    float primarySel = 0.0;
+    float mySelectionScale = 1.0;
+    if ( selectionGroupId >= 0.0 && isCompany > 0.5 ) {
+      float myId = -2.0;
+      if      ( abs( selectionMode - 1.0 ) < 0.5 ) myId = texture2D( textureSector,       uv ).a;
+      else if ( abs( selectionMode - 2.0 ) < 0.5 ) myId = texture2D( textureStage,        uv ).a;
+      else if ( abs( selectionMode - 3.0 ) < 0.5 ) myId = texture2D( textureBucket,       uv ).a;
+      else if ( abs( selectionMode - 4.0 ) < 0.5 ) myId = texture2D( textureNeighborhood, uv ).a;
+      primarySel = step( abs( myId - selectionGroupId ), 0.5 );
+      mySelectionScale = mix( 1.0, mix( 0.5, 1.5, primarySel ), selectionRamp );
+    }
+    // Secondary filter: further subdivide within primary selected group
+    if ( secondaryGroupId >= 0.0 && isCompany > 0.5 ) {
+      float mySecId = -2.0;
+      if      ( abs( secondaryMode - 1.0 ) < 0.5 ) mySecId = texture2D( textureSector,       uv ).a;
+      else if ( abs( secondaryMode - 2.0 ) < 0.5 ) mySecId = texture2D( textureStage,        uv ).a;
+      else if ( abs( secondaryMode - 3.0 ) < 0.5 ) mySecId = texture2D( textureBucket,       uv ).a;
+      else if ( abs( secondaryMode - 4.0 ) < 0.5 ) mySecId = texture2D( textureNeighborhood, uv ).a;
+      float secSel = step( abs( mySecId - secondaryGroupId ), 0.5 );
+      float effectiveSel = primarySel * secSel;
+      float targetScale = mix( 0.5, 1.5, effectiveSel ) * selectionRamp + ( 1.0 - selectionRamp );
+      mySelectionScale = mix( mySelectionScale, targetScale, secondaryRamp );
+    }
 
     vec3 birdPosition, birdVelocity;
     float dist, distSquared, f, percent;
@@ -439,13 +1052,13 @@
     // ── Flocking + cursor spread + spring repulsion (single neighbour pass) ─
     float flockWeight   = 1.0 - settlingFactor;
     bool  doNeighborhoodRepel = ( appState > 1.5 && appState < 2.5 && isCompany > 0.5 );
-    float neighborhoodRepelR  = springRestLength * 1.5;
+    float neighborhoodRepelR  = springRestLength * 1.5 * mySelectionScale;
     bool  doSectorRepel  = ( appState > 3.5 && appState < 4.5 && isCompany > 0.5 );
-    float sectorRepelR   = springRestLength * 1.5;
+    float sectorRepelR   = springRestLength * 1.5 * mySelectionScale;
     bool  doBucketRepel  = ( appState > 4.5 && appState < 5.5 && isCompany > 0.5 );
-    float bucketRepelR   = springRestLength * 1.5;
+    float bucketRepelR   = springRestLength * 1.5 * mySelectionScale;
     bool  doStageRepel   = ( appState > 2.5 && appState < 3.5 && isCompany > 0.5 );
-    float stageRepelR    = springRestLength * 1.5;
+    float stageRepelR    = springRestLength * 1.5 * mySelectionScale;
 
     if ( flockWeight > 0.001 || doCursorSpread || doNeighborhoodRepel || doSectorRepel || doBucketRepel || doStageRepel ) {
       for ( float y = 0.0; y < height; y++ ) {
@@ -598,6 +1211,14 @@
   uniform sampler2D textureNeighborhood; // RGB = neighborhood colour, A = neighborhood ID
   uniform float neighborhoodBlend;       // 0 = no neighborhood tint, 1 = neighborhood colour
   uniform float clusterScale;            // ramps 0→1 in clustering states; company boids scale 1→1.5×
+  uniform float selectionGroupId;
+  uniform float selectionMode;
+  uniform float selectionRamp;
+  uniform float secondaryGroupId;
+  uniform float secondaryMode;
+  uniform float secondaryRamp;
+  uniform float secActiveMode;   // which secondary filter is active (0=none, 1-4) — independent of subgroup
+  uniform float secColorBlend;   // 0→1 ramp when any secondary mode is on
   uniform float time;
 
   varying vec4 vColor;
@@ -631,7 +1252,40 @@
     // ── Billboard transform: place hex vertices around world-space pos ────
     // Company boids (textureSector.a >= 0) scale up to 1.5× in clustering states.
     float isCompanyVS = step( 0.0, texture2D( textureSector, reference ).a );
-    float boidScale   = 1.0 + 0.5 * isCompanyVS * clusterScale;
+
+    // Primary selection membership
+    float selBoidSel = 0.0;
+    if ( selectionGroupId >= 0.0 && isCompanyVS > 0.5 ) {
+      float myId = -2.0;
+      if      ( abs( selectionMode - 1.0 ) < 0.5 ) myId = texture2D( textureSector,       reference ).a;
+      else if ( abs( selectionMode - 2.0 ) < 0.5 ) myId = texture2D( textureStage,        reference ).a;
+      else if ( abs( selectionMode - 3.0 ) < 0.5 ) myId = texture2D( textureBucket,       reference ).a;
+      else if ( abs( selectionMode - 4.0 ) < 0.5 ) myId = texture2D( textureNeighborhood, reference ).a;
+      selBoidSel = step( abs( myId - selectionGroupId ), 0.5 );
+    }
+    // Secondary selection membership (within primary group)
+    float secBoidSel = 0.0;
+    if ( secondaryGroupId >= 0.0 && isCompanyVS > 0.5 ) {
+      float mySecId = -2.0;
+      if      ( abs( secondaryMode - 1.0 ) < 0.5 ) mySecId = texture2D( textureSector,       reference ).a;
+      else if ( abs( secondaryMode - 2.0 ) < 0.5 ) mySecId = texture2D( textureStage,        reference ).a;
+      else if ( abs( secondaryMode - 3.0 ) < 0.5 ) mySecId = texture2D( textureBucket,       reference ).a;
+      else if ( abs( secondaryMode - 4.0 ) < 0.5 ) mySecId = texture2D( textureNeighborhood, reference ).a;
+      secBoidSel = step( abs( mySecId - secondaryGroupId ), 0.5 );
+    }
+
+    float mySelScale = 1.0;
+    if ( selectionGroupId >= 0.0 && isCompanyVS > 0.5 ) {
+      float primaryScale = mix( 1.0, mix( 0.5, 1.5, selBoidSel ), selectionRamp );
+      if ( secondaryGroupId >= 0.0 ) {
+        float effectiveSel = selBoidSel * secBoidSel;
+        float targetScale  = mix( 0.5, 1.5, effectiveSel ) * selectionRamp + ( 1.0 - selectionRamp );
+        mySelScale = mix( primaryScale, targetScale, secondaryRamp );
+      } else {
+        mySelScale = primaryScale;
+      }
+    }
+    float boidScale   = ( 1.0 + 0.5 * isCompanyVS * clusterScale ) * mySelScale;
     vec3 worldPos = pos + tiltedRight * position.x * boidScale + tiltedUp * position.y * boidScale;
 
     z = worldPos.z;
@@ -643,6 +1297,23 @@
          tinted    = mix( tinted,    bucketCol, bucketBlend );
          tinted    = mix( tinted,    stageCol,  stageBlend  );
          tinted    = mix( tinted,    neighCol,  neighborhoodBlend );
+    // Re-tint primary-group boids with their secondary filter color when secondary mode is active
+    if ( secActiveMode >= 0.5 && isCompanyVS > 0.5 && selBoidSel > 0.5 ) {
+      vec3 secFilterCol = vec3( 0.0 );
+      if      ( abs( secActiveMode - 1.0 ) < 0.5 ) secFilterCol = texture2D( textureSector,       reference ).rgb;
+      else if ( abs( secActiveMode - 2.0 ) < 0.5 ) secFilterCol = texture2D( textureStage,        reference ).rgb;
+      else if ( abs( secActiveMode - 3.0 ) < 0.5 ) secFilterCol = texture2D( textureBucket,       reference ).rgb;
+      else if ( abs( secActiveMode - 4.0 ) < 0.5 ) secFilterCol = texture2D( textureNeighborhood, reference ).rgb;
+      tinted = mix( tinted, secFilterCol, secColorBlend );
+    }
+    // Primary: unselected boids fade toward Utah-border blue-gray
+    if ( selectionGroupId >= 0.0 && isCompanyVS > 0.5 ) {
+      tinted = mix( tinted, vec3( 0.345, 0.475, 0.659 ), ( 1.0 - selBoidSel ) * selectionRamp );
+    }
+    // Secondary: primary-but-not-secondary boids also fade to blue-gray
+    if ( secondaryGroupId >= 0.0 && isCompanyVS > 0.5 && selBoidSel > 0.5 ) {
+      tinted = mix( tinted, vec3( 0.345, 0.475, 0.659 ), ( 1.0 - secBoidSel ) * secondaryRamp );
+    }
     vColor = vec4( tinted, 1.0 );
     gl_Position = projectionMatrix * viewMatrix * vec4( worldPos, 1.0 );
   }
@@ -659,6 +1330,131 @@
     // Simple depth-brightening: hexes further from camera appear slightly brighter
     float depth = 0.35 + clamp( ( 800.0 - z ) / 800.0, 0.0, 1.0 ) * 0.65;
     gl_FragColor = vec4( vColor.rgb * depth, 1.0 );
+  }
+</script>
+
+<!-- ─────────────────────────────────────────────────
+     Logo overlay shaders
+──────────────────────────────────────────────────── -->
+<script id="logoVS" type="x-shader/x-vertex">
+  attribute vec2 reference;
+
+  uniform sampler2D texturePosition;
+  uniform sampler2D textureVelocity;
+  uniform sampler2D textureSector;
+  uniform sampler2D textureBucket;
+  uniform sampler2D textureStage;
+  uniform sampler2D textureNeighborhood;
+  uniform float clusterScale;
+  uniform float selectionGroupId;
+  uniform float selectionMode;
+  uniform float selectionRamp;
+  uniform float secondaryGroupId;
+  uniform float secondaryMode;
+  uniform float secondaryRamp;
+  uniform float logoLift;
+
+  varying vec2 vReference;
+  varying vec2 vLocalPos;
+  varying float z;
+
+  void main() {
+    vec4 tmpPos = texture2D( texturePosition, reference );
+    vec3 pos    = tmpPos.xyz;
+    float phase = tmpPos.w;
+
+    vec3 vel    = texture2D( textureVelocity, reference ).xyz;
+    float speed = length( vel );
+    float speedNorm = clamp( speed / 9.0, 0.0, 1.0 );
+
+    vec3 camRight = normalize( vec3( viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0] ) );
+    vec3 camUp    = normalize( vec3( viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1] ) );
+    vec3 camFwd   = normalize( vec3( viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2] ) );
+
+    float wobbleAmp = 0.65 * speedNorm;
+    float tiltV = sin( phase * 2.3 ) * wobbleAmp;
+    float tiltH = cos( phase * 1.7 ) * wobbleAmp * 0.6;
+
+    vec3 tiltedRight = normalize( camRight + camFwd * tiltH );
+    vec3 tiltedUp    = normalize( camUp    + camFwd * tiltV );
+
+    float isCompanyVS = step( 0.0, texture2D( textureSector, reference ).a );
+    float selBoidSelL = 0.0;
+    if ( selectionGroupId >= 0.0 && isCompanyVS > 0.5 ) {
+      float myId = -2.0;
+      if      ( abs( selectionMode - 1.0 ) < 0.5 ) myId = texture2D( textureSector,       reference ).a;
+      else if ( abs( selectionMode - 2.0 ) < 0.5 ) myId = texture2D( textureStage,        reference ).a;
+      else if ( abs( selectionMode - 3.0 ) < 0.5 ) myId = texture2D( textureBucket,       reference ).a;
+      else if ( abs( selectionMode - 4.0 ) < 0.5 ) myId = texture2D( textureNeighborhood, reference ).a;
+      selBoidSelL = step( abs( myId - selectionGroupId ), 0.5 );
+    }
+    float secBoidSelL = 0.0;
+    if ( secondaryGroupId >= 0.0 && isCompanyVS > 0.5 ) {
+      float mySecId = -2.0;
+      if      ( abs( secondaryMode - 1.0 ) < 0.5 ) mySecId = texture2D( textureSector,       reference ).a;
+      else if ( abs( secondaryMode - 2.0 ) < 0.5 ) mySecId = texture2D( textureStage,        reference ).a;
+      else if ( abs( secondaryMode - 3.0 ) < 0.5 ) mySecId = texture2D( textureBucket,       reference ).a;
+      else if ( abs( secondaryMode - 4.0 ) < 0.5 ) mySecId = texture2D( textureNeighborhood, reference ).a;
+      secBoidSelL = step( abs( mySecId - secondaryGroupId ), 0.5 );
+    }
+    float mySelScaleL = 1.0;
+    if ( selectionGroupId >= 0.0 && isCompanyVS > 0.5 ) {
+      float primaryScaleL = mix( 1.0, mix( 0.5, 1.5, selBoidSelL ), selectionRamp );
+      if ( secondaryGroupId >= 0.0 ) {
+        float effectiveSelL = selBoidSelL * secBoidSelL;
+        float targetScaleL  = mix( 0.5, 1.5, effectiveSelL ) * selectionRamp + ( 1.0 - selectionRamp );
+        mySelScaleL = mix( primaryScaleL, targetScaleL, secondaryRamp );
+      } else {
+        mySelScaleL = primaryScaleL;
+      }
+    }
+    float boidScale   = ( 1.0 + 0.5 * isCompanyVS * clusterScale ) * mySelScaleL;
+    vec3 worldPos = pos
+      + tiltedRight * position.x * boidScale
+      + tiltedUp * position.y * boidScale
+      + camFwd * logoLift;
+
+    vReference = reference;
+    vLocalPos  = position.xy;
+    z = worldPos.z;
+
+    gl_Position = projectionMatrix * viewMatrix * vec4( worldPos, 1.0 );
+  }
+</script>
+
+<script id="logoFS" type="x-shader/x-fragment">
+  uniform sampler2D textureLogoMeta;
+  uniform sampler2D textureLogoAtlas;
+  uniform float logoBlend;
+  uniform float hexRadius;
+  uniform float logoFrameScale;
+
+  varying vec2 vReference;
+  varying vec2 vLocalPos;
+  varying float z;
+
+  void main() {
+    if ( logoBlend <= 0.001 ) discard;
+
+    vec4 meta = texture2D( textureLogoMeta, vReference );
+    if ( meta.z <= 0.0 || meta.w <= 0.0 ) discard;
+
+    vec2 logoUv = vLocalPos / ( hexRadius * logoFrameScale ) + 0.5;
+    if ( logoUv.x < 0.0 || logoUv.x > 1.0 || logoUv.y < 0.0 || logoUv.y > 1.0 ) discard;
+
+    vec2 atlasUv = meta.xy + logoUv * meta.zw;
+    vec4 logo    = texture2D( textureLogoAtlas, atlasUv );
+
+    vec2 circleUv   = logoUv * 2.0 - 1.0;
+    float circleR   = length( circleUv );
+    float circleMask = 1.0 - smoothstep( 0.90, 1.0, circleR );
+    float edgeDist = min( min( logoUv.x, 1.0 - logoUv.x ), min( logoUv.y, 1.0 - logoUv.y ) );
+    float edgeFade = smoothstep( 0.01, 0.08, edgeDist );
+    float alpha    = logo.a * edgeFade * circleMask * logoBlend;
+    if ( alpha <= 0.02 ) discard;
+
+    float depth = 0.35 + clamp( ( 800.0 - z ) / 800.0, 0.0, 1.0 ) * 0.65;
+    gl_FragColor = vec4( logo.rgb * depth, alpha );
   }
 </script>
 
@@ -689,6 +1485,11 @@ const BIRDS          = TEXTURE_WIDTH * TEXTURE_HEIGHT; // 512 total boids
 const BOUNDS      = 800;
 const BOUNDS_HALF = BOUNDS / 2;
 const HEX_RADIUS  = 4.5;     // local scene units per hexagon half-width
+const LOGO_TILE_SIZE              = 96;
+const LOGO_LOAD_CONCURRENCY       = 6;
+const LOGO_DIAGNOSTIC_SAMPLE_LIMIT = 12;
+const LOGO_FRAME_SCALE            = 1.45;
+const LOGO_LIFT                   = 0.9;
 
 // Settling ramp duration (seconds from button click to fully settled)
 const SETTLE_DURATION = 6;
@@ -765,8 +1566,168 @@ const NEIGHBORHOOD_COLORS = [
   [ 1.00, 0.47, 0.33 ], // St. George        – coral
 ];
 
+// Maps each APP_STATE filter to its secondary-filter button id
+const _secBtnForState = {
+  [ APP_STATE.UTAH_SPRINGS ]: 'sec-btn-location',
+  [ APP_STATE.SECTOR        ]: 'sec-btn-sector',
+  [ APP_STATE.COMPANY_SIZE  ]: 'sec-btn-company-size',
+  [ APP_STATE.STAGE         ]: 'sec-btn-stage',
+};
+
+function _updateSecondaryFilter() {
+  const panel = document.getElementById( 'secondary-filter' );
+  if ( !selectedSubgroup ) {
+    panel.classList.remove( 'visible' );
+    return;
+  }
+  // Reposition panel immediately after the active primary filter button
+  const activeBtn = document.querySelector( '.filter-btn.active' );
+  if ( activeBtn && activeBtn.nextSibling !== panel ) {
+    activeBtn.parentNode.insertBefore( panel, activeBtn.nextSibling );
+  }
+  // Show all secondary buttons then hide the one matching the active primary filter
+  document.querySelectorAll( '.secondary-btn' ).forEach( b => { b.style.display = ''; } );
+  const hideId = _secBtnForState[ currentState ];
+  if ( hideId ) {
+    const btn = document.getElementById( hideId );
+    if ( btn ) btn.style.display = 'none';
+  }
+  panel.classList.add( 'visible' );
+}
+
+// ── Breadcrumb ───────────────────────────────────────────────────────────────
+
+const _bcNames  = [ null, SECTORS, STAGES, BUCKET_LABELS, NEIGHBORHOODS.map( n => n.name ) ];
+const _bcColors = [ null, SECTOR_CSS_COLORS, STAGE_CSS_COLORS, BUCKET_CSS_COLORS, NEIGHBORHOOD_CSS_COLORS ];
+
+function updateBreadcrumb() {
+  const elP = document.getElementById( 'bc-primary' );
+  const elS = document.getElementById( 'bc-secondary' );
+  if ( selectedSubgroup ) {
+    const name  = ( _bcNames [ selectedSubgroup.mode ] || [] )[ selectedSubgroup.id ] ?? '';
+    const color = ( _bcColors[ selectedSubgroup.mode ] || [] )[ selectedSubgroup.id ] ?? '#fff';
+    elP.textContent = name;
+    elP.style.color = color;
+    elP.style.borderColor = color;
+    elP.style.display = '';
+  } else {
+    elP.style.display = 'none';
+  }
+  if ( selectedSecondarySubgroup ) {
+    const name  = ( _bcNames [ selectedSecondarySubgroup.mode ] || [] )[ selectedSecondarySubgroup.id ] ?? '';
+    const color = ( _bcColors[ selectedSecondarySubgroup.mode ] || [] )[ selectedSecondarySubgroup.id ] ?? '#fff';
+    elS.textContent = name;
+    elS.style.color = color;
+    elS.style.borderColor = color;
+    elS.style.display = '';
+  } else {
+    elS.style.display = 'none';
+  }
+}
+
+// ── Secondary filter helpers ──────────────────────────────────────────────────
+
+function _secondaryArrays( mode ) {
+  return {
+    labelEls:  [ null, sectorLabelEls, stageLabelEls, bucketLabelEls, neighborhoodLabelEls ][ mode ],
+    groupIds:  [ null, companySectorIds, companyStageIds, companyBucketIds, companyNeighborhoodIds ][ mode ],
+    centroids: [ null, secondarySectorCentroids, secondaryStageCentroids, secondaryBucketCentroids, secondaryNeighborhoodCentroids ][ mode ],
+    labelPos:  [ null, secondarySectorLabelPos, secondaryStageLabelPos, secondaryBucketLabelPos, secondaryNeighborhoodLabelPos ][ mode ],
+    labelVel:  [ null, secondarySectorLabelVel, secondaryStageLabelVel, secondaryBucketLabelVel, secondaryNeighborhoodLabelVel ][ mode ],
+    count:     [ 0, SECTOR_COUNT, STAGE_COUNT, BUCKET_COUNT, NEIGHBORHOOD_COUNT ][ mode ],
+    btnId:     [ null, 'sec-btn-sector', 'sec-btn-stage', 'sec-btn-company-size', 'sec-btn-location' ][ mode ],
+  };
+}
+
+function clearSecondarySubgroup() {
+  selectedSecondarySubgroup = null;
+  document.querySelectorAll( '.sector-label-el[data-filter-source="secondary"]' )
+    .forEach( el => { el.classList.remove( 'selected', 'dimmed' ); } );
+  updateBreadcrumb();
+}
+
+function clearSecondaryMode() {
+  clearSecondarySubgroup();
+  selectedSecondaryMode = null;
+  secondaryGroupHasBoids = [];
+  document.querySelectorAll( '.secondary-btn' ).forEach( b => b.classList.remove( 'active' ) );
+}
+
+function applySecondaryMode( mode ) {
+  clearSecondarySubgroup();
+  if ( selectedSecondaryMode === mode ) { clearSecondaryMode(); return; }
+  selectedSecondaryMode = mode;
+  secondaryGroupHasBoids = [];
+  document.querySelectorAll( '.secondary-btn' ).forEach( b => b.classList.remove( 'active' ) );
+  const btn = document.getElementById( _secondaryArrays( mode ).btnId );
+  if ( btn ) btn.classList.add( 'active' );
+
+  // Seed secondary label positions around the primary group's current world centroid
+  const { labelPos, labelVel, centroids, count } = _secondaryArrays( mode );
+  const primIds = selectedSubgroup
+    ? [ null, companySectorIds, companyStageIds, companyBucketIds, companyNeighborhoodIds ][ selectedSubgroup.mode ]
+    : null;
+  let cx = 0, cy = 0, n = 0;
+  if ( primIds && lastPosPixels ) {
+    for ( let i = 0; i < companyData.length; i++ ) {
+      if ( primIds[ i ] !== selectedSubgroup.id ) continue;
+      cx += lastPosPixels[ i * 4 ]; cy += lastPosPixels[ i * 4 + 1 ]; n++;
+    }
+  }
+  cx = n > 0 ? cx / n : 0; cy = n > 0 ? cy / n : 0;
+  for ( let g = 0; g < count; g++ ) {
+    centroids[ g ].set( cx, cy );
+    const angle = ( g / count ) * Math.PI * 2;
+    labelPos[ g ].set( cx + Math.cos( angle ) * LABEL_TARGET_DIST, cy + Math.sin( angle ) * LABEL_TARGET_DIST );
+    labelVel[ g ].set( 0, 0 );
+  }
+}
+
+function applySecondarySubgroupSelection( mode, id ) {
+  if ( selectedSecondarySubgroup && selectedSecondarySubgroup.mode === mode && selectedSecondarySubgroup.id === id ) {
+    clearSecondarySubgroup(); return;
+  }
+  selectedSecondarySubgroup = { mode, id };
+  document.querySelectorAll( '.sector-label-el[data-filter-source="secondary"]' )
+    .forEach( el => { el.classList.remove( 'selected', 'dimmed' ); el.classList.add( 'dimmed' ); } );
+  const { labelEls } = _secondaryArrays( mode );
+  const el = labelEls && labelEls[ id ];
+  if ( el && el.dataset.filterSource === 'secondary' ) { el.classList.remove( 'dimmed' ); el.classList.add( 'selected' ); }
+  updateBreadcrumb();
+}
+
+// ── Primary subgroup helpers ──────────────────────────────────────────────────
+
+function clearSubgroupSelection() {
+  clearSecondaryMode();
+  selectedSubgroup = null;
+  document.querySelectorAll( '.sector-label-el.selected' ).forEach( e => e.classList.remove( 'selected' ) );
+  document.querySelectorAll( '.sector-label-el.dimmed'   ).forEach( e => e.classList.remove( 'dimmed'   ) );
+  updateBreadcrumb();
+  _updateSecondaryFilter();
+}
+
+function applySubgroupSelection( mode, id ) {
+  if ( selectedSubgroup && selectedSubgroup.mode === mode && selectedSubgroup.id === id ) {
+    clearSubgroupSelection();
+    return;
+  }
+  clearSecondarySubgroup(); // reset secondary subgroup when primary group changes; keep secondary mode
+  selectedSubgroup = { mode, id };
+  // Dim only primary-source labels, then select the matching one
+  document.querySelectorAll( '.sector-label-el.selected' ).forEach( e => e.classList.remove( 'selected' ) );
+  document.querySelectorAll( '.sector-label-el[data-filter-source="primary"].dimmed' ).forEach( e => e.classList.remove( 'dimmed' ) );
+  document.querySelectorAll( '.sector-label-el[data-filter-source="primary"].visible' ).forEach( e => e.classList.add( 'dimmed' ) );
+  const pools = [ null, sectorLabelEls, stageLabelEls, bucketLabelEls, neighborhoodLabelEls ];
+  const el = pools[ mode ] && pools[ mode ][ id ];
+  if ( el ) { el.classList.remove( 'dimmed' ); el.classList.add( 'selected' ); }
+  updateBreadcrumb();
+  _updateSecondaryFilter();
+}
+
 function setAppState( newState ) {
   currentState = newState;
+  clearSubgroupSelection();
   if ( newState === APP_STATE.UTAH_SPRINGS ) {
     for ( let n = 0; n < NEIGHBORHOOD_COUNT; n++ ) {
       neighborhoodLabelPos[ n ].copy( neighborhoodWorldPos[ n ] );
@@ -842,6 +1803,11 @@ const neighborhoodWorldPos = NEIGHBORHOODS.map( n => {
   return new THREE.Vector2( x, y );
 } );
 
+// Scene-space anchor for the company logo: the "crook" of Utah's NE notch,
+// visually in the upper-right gap where Wyoming sits on the real map.
+const _crookXY = project( 41.5, -110.3 );
+const CROOK_SCENE_POS = new THREE.Vector3( _crookXY[ 0 ], _crookXY[ 1 ], 0 );
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Supabase – company locations
 // ─────────────────────────────────────────────────────────────────────────────
@@ -851,7 +1817,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_nX4-QRSQZyU3ObYf06Rwdg_4yNhqrpk';
 async function fetchCompanies() {
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/companies?select=latitude,longitude,startup_name,logo_url,sector,employees,stage,neighborhood`,
+      `${SUPABASE_URL}/rest/v1/companies?select=id,latitude,longitude,startup_name,logo_url,sector,employees,stage,neighborhood,description,email_domain,website,linkedin`,
       {
         headers: {
           'apikey':        SUPABASE_ANON_KEY,
@@ -992,7 +1958,7 @@ class HexGeometry extends THREE.BufferGeometry {
 // ─────────────────────────────────────────────────────────────────────────────
 let camera, scene, renderer;
 let gpuCompute, velocityVariable, positionVariable;
-let positionUniforms, velocityUniforms, hexUniforms;
+let positionUniforms, velocityUniforms, hexUniforms, logoUniforms;
 let mouseX = 0, mouseY = 0;
 let mouseClientX = -9999, mouseClientY = -9999;
 let windowHalfX = window.innerWidth  / 2;
@@ -1001,11 +1967,21 @@ let last              = performance.now();
 let startTime         = null;
 let settlingStartTime = null;
 
-// Company tooltip state
-let companyData            = []; // { startup_name, logoUrl } per company boid
+// Company tooltip + card state
+let companyData            = []; // { startup_name, logoUrl, sector, employees, stage, neighborhood, description }
 let cachedCompanyScreenPos = []; // { x, y } screen coords per company boid
+let selectedCompany        = -1; // index into companyData, -1 = none
+
+const BEEHIVE_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect x="8" y="66" width="64" height="9" rx="2" fill="#5c4a1e"/><path d="M13 66 Q11 38 40 20 Q69 38 67 66Z" fill="#c8960c"/><ellipse cx="40" cy="66" rx="27" ry="7" fill="#8b6914"/><path d="M14 57 Q13 33 40 20 Q67 33 66 57" fill="none" stroke="#7a5e12" stroke-width="2.5"/><path d="M17 49 Q16 28 40 20 Q64 28 63 49" fill="none" stroke="#7a5e12" stroke-width="2.5"/><path d="M21 41 Q20 24 40 20 Q60 24 59 41" fill="none" stroke="#7a5e12" stroke-width="2.5"/><ellipse cx="40" cy="65" rx="8" ry="3.5" fill="#3d2b1f"/><circle cx="40" cy="18" r="5" fill="#5c4a1e"/></svg>')}`;
+
 let lastReadbackTime       = 0;
 let lastPosPixels          = null;
+let logoBlend              = 0.0;
+let logoBlendTarget        = 0.0;
+let logoAtlasTexture       = null;
+let logoMetaTexture        = null;
+let logoMetaData           = null;
+let logoDiagnostics        = null;
 
 // Sector state
 let companySectorIds      = [];  // sector index (0–6) per company boid
@@ -1032,6 +2008,29 @@ let companyStageIds     = [];  // stage index (0–7) per company boid
 let stageBlend          = 0.0;
 let stageBlendTarget    = 0.0;
 let clusterScale        = 0.0;  // ramps 0→1 when entering clustering states
+let selectedSubgroup    = null; // { mode: float (1=sector,2=stage,3=bucket,4=neighborhood), id: int } or null
+let selectionRamp       = 0.0; // linearly ramps 0→1 over 2 s when a subgroup is selected
+let selectedSecondaryMode    = null; // null or int (1-4) — which secondary filter type is active
+let selectedSecondarySubgroup = null; // null or { mode, id } — specific secondary subgroup
+let secondaryRamp            = 0.0;  // ramps 0→1 over 2 s when secondary subgroup selected
+let secondaryColorBlend      = 0.0;  // ramps 0→1 over 2 s when any secondary mode is active
+let secondaryGroupHasBoids   = [];   // boolean[] — which secondary subgroups contain primary-group boids
+
+// World-space centroids of primary-group boids grouped by secondary filter
+let secondarySectorCentroids       = Array.from( { length: SECTOR_COUNT       }, () => new THREE.Vector2( 0, 0 ) );
+let secondaryStageCentroids        = Array.from( { length: STAGE_COUNT        }, () => new THREE.Vector2( 0, 0 ) );
+let secondaryBucketCentroids       = Array.from( { length: BUCKET_COUNT       }, () => new THREE.Vector2( 0, 0 ) );
+let secondaryNeighborhoodCentroids = Array.from( { length: NEIGHBORHOOD_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+
+// Spring-physics positions/velocities for secondary filter labels
+let secondarySectorLabelPos       = Array.from( { length: SECTOR_COUNT       }, () => new THREE.Vector2( 0, 0 ) );
+let secondarySectorLabelVel       = Array.from( { length: SECTOR_COUNT       }, () => new THREE.Vector2( 0, 0 ) );
+let secondaryStageLabelPos        = Array.from( { length: STAGE_COUNT        }, () => new THREE.Vector2( 0, 0 ) );
+let secondaryStageLabelVel        = Array.from( { length: STAGE_COUNT        }, () => new THREE.Vector2( 0, 0 ) );
+let secondaryBucketLabelPos       = Array.from( { length: BUCKET_COUNT       }, () => new THREE.Vector2( 0, 0 ) );
+let secondaryBucketLabelVel       = Array.from( { length: BUCKET_COUNT       }, () => new THREE.Vector2( 0, 0 ) );
+let secondaryNeighborhoodLabelPos = Array.from( { length: NEIGHBORHOOD_COUNT }, () => new THREE.Vector2( 0, 0 ) );
+let secondaryNeighborhoodLabelVel = Array.from( { length: NEIGHBORHOOD_COUNT }, () => new THREE.Vector2( 0, 0 ) );
 let stageCentroidsWorld = Array.from( { length: STAGE_COUNT }, () => new THREE.Vector2( 0, 0 ) );
 let stageLabelEls       = [];
 let stageLabelPos       = Array.from( { length: STAGE_COUNT }, () => new THREE.Vector2( 0, 0 ) );
@@ -1075,6 +2074,7 @@ function updateTooltip( cx, cy ) {
 
   if ( cachedCompanyScreenPos.length === 0 ) {
     tooltipEl.style.display = 'none';
+    document.querySelectorAll( '.sector-label-el.hovered' ).forEach( e => e.classList.remove( 'hovered' ) );
     return;
   }
 
@@ -1091,21 +2091,52 @@ function updateTooltip( cx, cy ) {
     }
   }
 
+  // Highlight the label for the group the nearest boid belongs to
+  {
+    const prev = document.querySelector( '.sector-label-el.hovered' );
+    let next = null;
+    if ( bestIdx >= 0 ) {
+      if ( selectedSecondaryMode !== null && selectedSubgroup !== null ) {
+        // Secondary mode active: highlight secondary label for primary-group boids
+        const primIds = [ null, companySectorIds, companyStageIds, companyBucketIds, companyNeighborhoodIds ][ selectedSubgroup.mode ];
+        if ( primIds && primIds[ bestIdx ] === selectedSubgroup.id ) {
+          const secIds  = [ null, companySectorIds, companyStageIds, companyBucketIds, companyNeighborhoodIds ][ selectedSecondaryMode ];
+          const secLbls = [ null, sectorLabelEls, stageLabelEls, bucketLabelEls, neighborhoodLabelEls ][ selectedSecondaryMode ];
+          if ( secIds && secLbls ) { const sid = secIds[ bestIdx ]; if ( sid >= 0 ) next = secLbls[ sid ]; }
+        }
+      } else {
+        if      ( currentState === APP_STATE.SECTOR       ) { const id = companySectorIds[ bestIdx ];       if ( id >= 0 ) next = sectorLabelEls[ id ]; }
+        else if ( currentState === APP_STATE.STAGE        ) { const id = companyStageIds[ bestIdx ];        if ( id >= 0 ) next = stageLabelEls[ id ]; }
+        else if ( currentState === APP_STATE.COMPANY_SIZE ) { const id = companyBucketIds[ bestIdx ];       if ( id >= 0 ) next = bucketLabelEls[ id ]; }
+        else if ( currentState === APP_STATE.UTAH_SPRINGS ) { const id = companyNeighborhoodIds[ bestIdx ]; if ( id >= 0 ) next = neighborhoodLabelEls[ id ]; }
+      }
+    }
+    if ( prev !== next ) {
+      if ( prev ) prev.classList.remove( 'hovered' );
+      if ( next ) next.classList.add( 'hovered' );
+    }
+  }
+
   if ( bestIdx < 0 ) { tooltipEl.style.display = 'none'; return; }
 
   const co   = companyData[ bestIdx ];
   const pos  = cachedCompanyScreenPos[ bestIdx ];
   const size = Math.round( hexDiam );
+  const persistentLogoState = isLogoFilterState( currentState );
 
   tooltipLogo.style.width  = size + 'px';
   tooltipLogo.style.height = size + 'px';
 
-  if ( co.logoUrl && tooltipLogo.dataset.loadedSrc !== co.logoUrl ) {
+  if ( persistentLogoState ) {
+    tooltipLogo.style.display = 'none';
+  } else if ( co.logoUrl && tooltipLogo.dataset.loadedSrc !== co.logoUrl ) {
     tooltipLogo.dataset.loadedSrc = co.logoUrl;
     tooltipLogo.style.display     = '';
     tooltipLogo.src               = co.logoUrl;
     tooltipLogo.onerror           = () => { tooltipLogo.style.display = 'none'; };
     tooltipLogo.onload            = () => { tooltipLogo.style.display = ''; };
+  } else if ( co.logoUrl ) {
+    tooltipLogo.style.display = '';
   } else if ( !co.logoUrl ) {
     tooltipLogo.style.display = 'none';
   }
@@ -1138,17 +2169,29 @@ async function init() {
   console.log( `Loaded ${companies.length} companies from Supabase` );
 
   companyData = companies.slice( 0, BIRDS ).map( c => ( {
+    id:           c.id,
     startup_name: c.startup_name || '',
     logoUrl:      c.logo_url || '',
+    sector:       c.sector       || '',
+    employees:    c.employees    || '',
+    stage:        c.stage        || '',
+    neighborhood: c.neighborhood || '',
+    description:  c.description  || '',
+    emailDomain:  c.email_domain || '',
+    website:      c.website      || '',
+    linkedin:     c.linkedin     || '',
   } ) );
 
   initGPGPU( companies );
   initHexMesh( companies.length );
+  initLogoAtlasResources( companyData.length );
+  void populateLogoAtlas( companyData );
 
   renderer.setAnimationLoop( animate );
 
   container.style.touchAction = 'none';
   container.addEventListener( 'pointermove', onPointerMove );
+  container.addEventListener( 'click', onCanvasClick );
   window.addEventListener( 'resize', onWindowResize );
 
   document.getElementById( 'startBtn' ).addEventListener( 'click', () => {
@@ -1157,6 +2200,8 @@ async function init() {
     document.getElementById( 'filter-bar' ).style.display = 'flex';
     setAppState( APP_STATE.UTAH_MAP );
   } );
+
+  document.getElementById( 'card-close' ).addEventListener( 'click', hideCompanyCard );
 
   const filterButtons = document.querySelectorAll( '.filter-btn' );
   const filterStateMap = {
@@ -1180,6 +2225,34 @@ async function init() {
     } );
   } );
 
+  function makeLabelClickHandler( mode, id ) {
+    return function( e ) {
+      e.stopPropagation();
+      // If this label's filter type is the active secondary mode, apply secondary selection
+      if ( selectedSecondaryMode === mode ) {
+        applySecondarySubgroupSelection( mode, id );
+      } else {
+        applySubgroupSelection( mode, id );
+      }
+    };
+  }
+
+  // Secondary filter button click handlers
+  const secFilterModeMap = {
+    'sec-btn-location':     4,
+    'sec-btn-sector':       1,
+    'sec-btn-company-size': 3,
+    'sec-btn-stage':        2,
+  };
+  document.querySelectorAll( '.secondary-btn' ).forEach( btn => {
+    btn.addEventListener( 'click', e => {
+      e.stopPropagation();
+      const mode = secFilterModeMap[ btn.id ];
+      if ( mode === undefined ) return;
+      applySecondaryMode( mode );
+    } );
+  } );
+
   // Floating neighborhood labels (Location filter)
   const sectorContainer = document.getElementById( 'sector-labels' );
   for ( let n = 0; n < NEIGHBORHOOD_COUNT; n++ ) {
@@ -1188,6 +2261,7 @@ async function init() {
     el.textContent = NEIGHBORHOODS[ n ].name;
     el.style.color = NEIGHBORHOOD_CSS_COLORS[ n ];
     el.style.borderColor = NEIGHBORHOOD_CSS_COLORS[ n ];
+    el.addEventListener( 'click', makeLabelClickHandler( 4, n ) );
     sectorContainer.appendChild( el );
     neighborhoodLabelEls.push( el );
   }
@@ -1199,6 +2273,7 @@ async function init() {
     el.textContent = SECTORS[ s ];
     el.style.color = SECTOR_CSS_COLORS[ s ];
     el.style.borderColor = SECTOR_CSS_COLORS[ s ];
+    el.addEventListener( 'click', makeLabelClickHandler( 1, s ) );
     sectorContainer.appendChild( el );
     sectorLabelEls.push( el );
   }
@@ -1210,6 +2285,7 @@ async function init() {
     el.textContent = BUCKET_LABELS[ b ];
     el.style.color = BUCKET_CSS_COLORS[ b ];
     el.style.borderColor = BUCKET_CSS_COLORS[ b ];
+    el.addEventListener( 'click', makeLabelClickHandler( 3, b ) );
     sectorContainer.appendChild( el );
     bucketLabelEls.push( el );
   }
@@ -1221,6 +2297,7 @@ async function init() {
     el.textContent = STAGES[ s ];
     el.style.color = STAGE_CSS_COLORS[ s ];
     el.style.borderColor = STAGE_CSS_COLORS[ s ];
+    el.addEventListener( 'click', makeLabelClickHandler( 2, s ) );
     sectorContainer.appendChild( el );
     stageLabelEls.push( el );
   }
@@ -1286,6 +2363,12 @@ function initGPGPU( companies ) {
   velocityUniforms[ 'textureNeighborhood'         ] = { value: buildNeighborhoodTexture( companies ) };
   velocityUniforms[ 'neighborhoodCentroids'       ] = { value: neighborhoodCentroidsWorld };
   velocityUniforms[ 'neighborhoodLabelPositions'  ] = { value: neighborhoodLabelPos };
+  velocityUniforms[ 'selectionGroupId'            ] = { value: -1.0 };
+  velocityUniforms[ 'selectionMode'               ] = { value: 0.0 };
+  velocityUniforms[ 'selectionRamp'               ] = { value: 0.0 };
+  velocityUniforms[ 'secondaryGroupId'            ] = { value: -1.0 };
+  velocityUniforms[ 'secondaryMode'               ] = { value: 0.0 };
+  velocityUniforms[ 'secondaryRamp'               ] = { value: 0.0 };
 
   initSectorCentroids( companies );
   initBucketCentroids( companies );
@@ -1301,6 +2384,240 @@ function initGPGPU( companies ) {
 
   const error = gpuCompute.init();
   if ( error !== null ) console.error( 'GPUComputationRenderer error:', error );
+}
+
+function isLogoFilterState( state ) {
+  return state === APP_STATE.UTAH_SPRINGS ||
+         state === APP_STATE.SECTOR ||
+         state === APP_STATE.COMPANY_SIZE ||
+         state === APP_STATE.STAGE;
+}
+
+function countVisibleLogoTiles( count = companyData.length ) {
+  if ( !logoMetaData ) return 0;
+  let visible = 0;
+  for ( let i = 0; i < count; i++ ) {
+    if ( logoMetaData[ i * 4 + 2 ] > 0.0 && logoMetaData[ i * 4 + 3 ] > 0.0 ) visible++;
+  }
+  return visible;
+}
+
+function publishLogoDiagnostics( phase ) {
+  if ( !logoDiagnostics ) return;
+
+  logoDiagnostics.phase = phase;
+  logoDiagnostics.visibleTiles = countVisibleLogoTiles();
+  logoDiagnostics.atlas = logoAtlasTexture ? {
+    width: logoAtlasTexture.image.width,
+    height: logoAtlasTexture.image.height,
+    tileSize: LOGO_TILE_SIZE,
+    flipY: logoAtlasTexture.flipY,
+  } : null;
+  logoDiagnostics.logoBlend = logoBlend;
+  logoDiagnostics.currentState = currentState;
+  logoDiagnostics.logoLift = LOGO_LIFT;
+  window.logoDiagnostics = logoDiagnostics;
+
+  console.info( `[logos] ${phase}`, {
+    totalCompanies: logoDiagnostics.totalCompanies,
+    withUrl: logoDiagnostics.withUrl,
+    missingUrl: logoDiagnostics.missingUrl,
+    attempted: logoDiagnostics.attempted,
+    loaded: logoDiagnostics.loaded,
+    failed: logoDiagnostics.failed,
+    visibleTiles: logoDiagnostics.visibleTiles,
+    atlas: logoDiagnostics.atlas,
+    sampleFailures: logoDiagnostics.sampleFailures,
+  } );
+}
+
+function resetLogoDiagnostics( companies ) {
+  const withUrl = companies.reduce( ( count, co ) => count + ( co.logoUrl ? 1 : 0 ), 0 );
+  logoDiagnostics = {
+    phase: 'reset',
+    totalCompanies: companies.length,
+    withUrl,
+    missingUrl: companies.length - withUrl,
+    attempted: 0,
+    loaded: 0,
+    failed: 0,
+    visibleTiles: 0,
+    atlas: null,
+    logoBlend,
+    currentState,
+    logoLift: LOGO_LIFT,
+    sampleFailures: [],
+  };
+  window.logoDiagnostics = logoDiagnostics;
+}
+
+function initLogoAtlasResources( companyCount ) {
+  const safeCount = Math.max( 1, companyCount );
+  const cols = Math.ceil( Math.sqrt( safeCount ) );
+  const rows = Math.ceil( safeCount / cols );
+  const canvas = document.createElement( 'canvas' );
+  canvas.width  = cols * LOGO_TILE_SIZE;
+  canvas.height = rows * LOGO_TILE_SIZE;
+
+  const ctx = canvas.getContext( '2d', { alpha: true } );
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.clearRect( 0, 0, canvas.width, canvas.height );
+
+  logoAtlasTexture = new THREE.CanvasTexture( canvas );
+  logoAtlasTexture.wrapS = THREE.ClampToEdgeWrapping;
+  logoAtlasTexture.wrapT = THREE.ClampToEdgeWrapping;
+  logoAtlasTexture.minFilter = THREE.LinearFilter;
+  logoAtlasTexture.magFilter = THREE.LinearFilter;
+  logoAtlasTexture.generateMipmaps = false;
+  logoAtlasTexture.colorSpace = THREE.SRGBColorSpace;
+  logoAtlasTexture.needsUpdate = true;
+
+  logoMetaData = new Float32Array( BIRDS * 4 );
+  logoMetaTexture = new THREE.DataTexture(
+    logoMetaData, TEXTURE_WIDTH, TEXTURE_HEIGHT,
+    THREE.RGBAFormat, THREE.FloatType
+  );
+  logoMetaTexture.magFilter = THREE.NearestFilter;
+  logoMetaTexture.minFilter = THREE.NearestFilter;
+  logoMetaTexture.needsUpdate = true;
+
+  if ( logoUniforms ) {
+    logoUniforms[ 'textureLogoAtlas' ].value = logoAtlasTexture;
+    logoUniforms[ 'textureLogoMeta' ].value  = logoMetaTexture;
+  }
+
+  window.logoDiagnostics = null;
+}
+
+function atlasTileRect( index ) {
+  const cols = Math.max( 1, Math.floor( logoAtlasTexture.image.width / LOGO_TILE_SIZE ) );
+  const col  = index % cols;
+  const row  = Math.floor( index / cols );
+  const px   = col * LOGO_TILE_SIZE;
+  const py   = row * LOGO_TILE_SIZE;
+  return {
+    px,
+    py,
+    u: px / logoAtlasTexture.image.width,
+    // WebGL samples textures from a bottom-left origin while the canvas atlas is drawn
+    // from a top-left origin, so anchor each tile by its bottom edge in UV space.
+    v: 1.0 - ( py + LOGO_TILE_SIZE ) / logoAtlasTexture.image.height,
+    du: LOGO_TILE_SIZE / logoAtlasTexture.image.width,
+    dv: LOGO_TILE_SIZE / logoAtlasTexture.image.height,
+  };
+}
+
+function loadLogoImage( url ) {
+  return new Promise( resolve => {
+    if ( !url ) { resolve( null ); return; }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.decoding = 'async';
+    img.onload = () => resolve( img );
+    img.onerror = () => resolve( null );
+    img.src = url;
+  } );
+}
+
+function drawLogoTile( ctx, img, tileRect ) {
+  ctx.clearRect( tileRect.px, tileRect.py, LOGO_TILE_SIZE, LOGO_TILE_SIZE );
+
+  const padding = LOGO_TILE_SIZE * 0.10;
+  const circleSize = LOGO_TILE_SIZE - padding * 2;
+  const cx = tileRect.px + LOGO_TILE_SIZE * 0.5;
+  const cy = tileRect.py + LOGO_TILE_SIZE * 0.5;
+  const radius = circleSize * 0.5;
+  const logoInset = circleSize * 0.18;
+  const maxW = circleSize - logoInset * 2;
+  const maxH = circleSize - logoInset * 2;
+  const scale = Math.min( maxW / img.width, maxH / img.height );
+  const drawW = Math.max( 1, img.width * scale );
+  const drawH = Math.max( 1, img.height * scale );
+  const dx = cx - drawW * 0.5;
+  const dy = cy - drawH * 0.5;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc( cx, cy, radius, 0, Math.PI * 2 );
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(10,15,30,0.92)';
+  ctx.fill();
+  ctx.clip();
+  ctx.drawImage( img, dx, dy, drawW, drawH );
+  ctx.restore();
+}
+
+async function populateLogoAtlas( companies ) {
+  if ( !logoAtlasTexture || !logoMetaTexture || companies.length === 0 ) return;
+
+  const ctx = logoAtlasTexture.image.getContext( '2d', { alpha: true } );
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  const workerCount = Math.min( LOGO_LOAD_CONCURRENCY, companies.length );
+  resetLogoDiagnostics( companies );
+  publishLogoDiagnostics( 'atlas-start' );
+
+  const loadJob = async index => {
+    const co = companies[ index ];
+    if ( !co.logoUrl ) return;
+
+    logoDiagnostics.attempted++;
+
+    const img = await loadLogoImage( co.logoUrl );
+    if ( !img ) {
+      logoDiagnostics.failed++;
+      if ( logoDiagnostics.sampleFailures.length < LOGO_DIAGNOSTIC_SAMPLE_LIMIT ) {
+        logoDiagnostics.sampleFailures.push( {
+          index,
+          startup_name: co.startup_name,
+          logoUrl: co.logoUrl,
+          reason: 'image-load-failed',
+        } );
+      }
+      return;
+    }
+
+    const tile = atlasTileRect( index );
+    try {
+      drawLogoTile( ctx, img, tile );
+    } catch ( err ) {
+      logoDiagnostics.failed++;
+      if ( logoDiagnostics.sampleFailures.length < LOGO_DIAGNOSTIC_SAMPLE_LIMIT ) {
+        logoDiagnostics.sampleFailures.push( {
+          index,
+          startup_name: co.startup_name,
+          logoUrl: co.logoUrl,
+          reason: 'draw-failed',
+          message: err instanceof Error ? err.message : String( err ),
+        } );
+      }
+      console.warn( '[logos] draw failed', co.startup_name, co.logoUrl, err );
+      return;
+    }
+
+    logoMetaData[ index * 4 + 0 ] = tile.u;
+    logoMetaData[ index * 4 + 1 ] = tile.v;
+    logoMetaData[ index * 4 + 2 ] = tile.du;
+    logoMetaData[ index * 4 + 3 ] = tile.dv;
+
+    logoAtlasTexture.needsUpdate = true;
+    logoMetaTexture.needsUpdate  = true;
+    logoDiagnostics.loaded++;
+  };
+
+  const workers = Array.from( { length: workerCount }, ( _, workerIndex ) => ( async () => {
+    for ( let i = workerIndex; i < companies.length; i += workerCount ) {
+      await loadJob( i );
+    }
+  } )() );
+
+  await Promise.all( workers );
+
+  if ( logoDiagnostics.loaded === 0 && logoDiagnostics.withUrl > 0 ) {
+    console.warn( '[logos] atlas completed with zero loaded logos' );
+  }
+  publishLogoDiagnostics( 'atlas-complete' );
 }
 
 /**
@@ -1634,8 +2951,39 @@ function initHexMesh( companyCount ) {
     textureNeighborhood:  { value: velocityUniforms[ 'textureNeighborhood' ].value },
     neighborhoodBlend:    { value: 0.0 },
     clusterScale:         { value: 0.0 },
+    selectionGroupId:     { value: -1.0 },
+    selectionMode:        { value: 0.0 },
+    selectionRamp:        { value: 0.0 },
+    secondaryGroupId:     { value: -1.0 },
+    secondaryMode:        { value: 0.0 },
+    secondaryRamp:        { value: 0.0 },
+    secActiveMode:        { value: 0.0 },
+    secColorBlend:        { value: 0.0 },
     time:            { value: 0.0 },
     delta:           { value: 0.0 },
+  };
+
+  logoUniforms = {
+    texturePosition:    { value: null },
+    textureVelocity:    { value: null },
+    textureSector:      { value: velocityUniforms[ 'textureSector'       ].value },
+    textureBucket:      { value: velocityUniforms[ 'textureBucket'       ].value },
+    textureStage:       { value: velocityUniforms[ 'textureStage'        ].value },
+    textureNeighborhood:{ value: velocityUniforms[ 'textureNeighborhood' ].value },
+    textureLogoMeta:    { value: logoMetaTexture },
+    textureLogoAtlas:   { value: logoAtlasTexture },
+    clusterScale:       { value: 0.0 },
+    selectionGroupId:   { value: -1.0 },
+    selectionMode:      { value: 0.0 },
+    selectionRamp:      { value: 0.0 },
+    secondaryGroupId:   { value: -1.0 },
+    secondaryMode:      { value: 0.0 },
+    secondaryRamp:      { value: 0.0 },
+    logoBlend:          { value: 0.0 },
+    hexRadius:          { value: HEX_RADIUS },
+    logoFrameScale:     { value: LOGO_FRAME_SCALE },
+    logoLift:           { value: LOGO_LIFT },
+    time:               { value: 0.0 },
   };
 
   const material = new THREE.ShaderMaterial( {
@@ -1645,10 +2993,28 @@ function initHexMesh( companyCount ) {
     side:           THREE.DoubleSide,
   } );
 
+  const logoMaterial = new THREE.ShaderMaterial( {
+    uniforms:       logoUniforms,
+    vertexShader:   document.getElementById( 'logoVS' ).textContent,
+    fragmentShader: document.getElementById( 'logoFS' ).textContent,
+    side:           THREE.DoubleSide,
+    transparent:    true,
+    depthWrite:     false,
+    polygonOffset:  true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits:  -2,
+  } );
+
   const mesh = new THREE.Mesh( geometry, material );
   mesh.matrixAutoUpdate = false;
   mesh.updateMatrix();
   scene.add( mesh );
+
+  const logoMesh = new THREE.Mesh( geometry, logoMaterial );
+  logoMesh.matrixAutoUpdate = false;
+  logoMesh.renderOrder = 1;
+  logoMesh.updateMatrix();
+  scene.add( logoMesh );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1697,6 +3063,142 @@ function onPointerMove( e ) {
   mouseY       = e.clientY - windowHalfY;
   mouseClientX = e.clientX;
   mouseClientY = e.clientY;
+}
+
+function onCanvasClick( e ) {
+  const cx = e.clientX, cy = e.clientY;
+  const hexDiam = hexScreenDiameter();
+
+  // Individual company card: only interactive 3+ seconds after settling starts.
+  const settledEnough = settlingStartTime !== null && performance.now() - settlingStartTime >= 3000;
+  if ( settledEnough && cachedCompanyScreenPos.length > 0 ) {
+    const tightThreshold = hexDiam * 1.5;
+    let bestIdx = -1, bestDist2 = Infinity;
+    for ( let i = 0; i < cachedCompanyScreenPos.length; i++ ) {
+      const p = cachedCompanyScreenPos[ i ];
+      const dx = p.x - cx, dy = p.y - cy;
+      const d2 = dx * dx + dy * dy;
+      if ( d2 < bestDist2 && Math.sqrt( d2 ) < tightThreshold ) { bestDist2 = d2; bestIdx = i; }
+    }
+    if ( bestIdx >= 0 ) {
+      if ( selectedCompany === bestIdx ) {
+        hideCompanyCard();
+      } else {
+        showCompanyCard( bestIdx );
+      }
+      return; // don't also trigger filter subgroup selection
+    }
+    // Clicked empty space — dismiss any open card
+    hideCompanyCard();
+  }
+
+  // Existing filter subgroup selection logic (loose threshold, filter states only)
+  const stateToMode = {
+    [ APP_STATE.SECTOR       ]: [ 1, companySectorIds       ],
+    [ APP_STATE.STAGE        ]: [ 2, companyStageIds        ],
+    [ APP_STATE.COMPANY_SIZE ]: [ 3, companyBucketIds       ],
+    [ APP_STATE.UTAH_SPRINGS ]: [ 4, companyNeighborhoodIds ],
+  };
+  const entry = stateToMode[ currentState ];
+  if ( !entry ) return;
+  const [ mode, groupIds ] = entry;
+
+  if ( cachedCompanyScreenPos.length === 0 ) { clearSubgroupSelection(); return; }
+
+  const threshold = hexDiam * 3;
+  let bestIdx = -1, bestDist2 = Infinity;
+  for ( let i = 0; i < cachedCompanyScreenPos.length; i++ ) {
+    const p = cachedCompanyScreenPos[ i ];
+    const dx = p.x - cx, dy = p.y - cy;
+    const d2 = dx * dx + dy * dy;
+    if ( d2 < bestDist2 && Math.sqrt( d2 ) < threshold ) { bestDist2 = d2; bestIdx = i; }
+  }
+
+  if ( bestIdx < 0 ) { clearSubgroupSelection(); return; }
+
+  const groupId = groupIds[ bestIdx ];
+  if ( groupId < 0 ) return;
+
+  // Secondary mode active + boid is in primary group → apply secondary subgroup selection
+  if ( selectedSecondaryMode !== null && selectedSubgroup !== null && groupId === selectedSubgroup.id ) {
+    const secIds = [ null, companySectorIds, companyStageIds, companyBucketIds, companyNeighborhoodIds ][ selectedSecondaryMode ];
+    if ( secIds ) {
+      const secId = secIds[ bestIdx ];
+      if ( secId >= 0 ) { applySecondarySubgroupSelection( selectedSecondaryMode, secId ); return; }
+    }
+  }
+
+  applySubgroupSelection( mode, groupId );
+}
+
+function showCompanyCard( idx ) {
+  selectedCompany = idx;
+  const co = companyData[ idx ];
+
+  document.getElementById( 'card-name'      ).textContent = co.startup_name;
+  document.getElementById( 'card-location'  ).textContent = co.neighborhood  || '—';
+  document.getElementById( 'card-sector'    ).textContent = co.sector        || '—';
+  document.getElementById( 'card-headcount' ).textContent = co.employees     || '—';
+  document.getElementById( 'card-stage'     ).textContent = co.stage         || '—';
+  document.getElementById( 'crook-name'     ).textContent = co.startup_name;
+
+  const inlineLogoEl = document.getElementById( 'card-inline-logo' );
+  if ( co.logoUrl ) {
+    inlineLogoEl.onerror = () => { inlineLogoEl.style.display = 'none'; };
+    inlineLogoEl.onload  = () => { inlineLogoEl.style.display = ''; };
+    inlineLogoEl.style.display = '';
+    inlineLogoEl.src = co.logoUrl;
+  } else {
+    inlineLogoEl.style.display = 'none';
+  }
+
+  const descEl = document.getElementById( 'card-description' );
+  if ( co.description ) {
+    descEl.textContent = co.description;
+    descEl.style.display = '';
+  } else {
+    descEl.style.display = 'none';
+  }
+
+  const crookImg = document.getElementById( 'crook-logo-img' );
+  crookImg.onerror = () => { crookImg.src = BEEHIVE_SVG; };
+  crookImg.src = co.logoUrl || BEEHIVE_SVG;
+
+  const linksDiv      = document.getElementById( 'card-links' );
+  const websiteLink   = document.getElementById( 'card-website-link' );
+  const linkedinLink  = document.getElementById( 'card-linkedin-link' );
+  const hasWebsite    = !!co.website;
+  const hasLinkedin   = !!co.linkedin;
+
+  if ( hasWebsite ) {
+    const href = co.website.startsWith( 'http' ) ? co.website : 'https://' + co.website;
+    websiteLink.href          = href;
+    websiteLink.style.display = '';
+  } else {
+    websiteLink.style.display = 'none';
+  }
+
+  if ( hasLinkedin ) {
+    const href = co.linkedin.startsWith( 'http' ) ? co.linkedin : 'https://' + co.linkedin;
+    linkedinLink.href          = href;
+    linkedinLink.style.display = '';
+  } else {
+    linkedinLink.style.display = 'none';
+  }
+
+  linksDiv.classList.toggle( 'visible', hasWebsite || hasLinkedin );
+
+  const editBtn = document.getElementById( 'card-edit-btn' );
+  editBtn.style.display = co.emailDomain ? '' : 'none';
+
+  document.getElementById( 'company-card' ).classList.add( 'visible' );
+  document.getElementById( 'crook-logo'   ).classList.add( 'visible' );
+}
+
+function hideCompanyCard() {
+  selectedCompany = -1;
+  document.getElementById( 'company-card' ).classList.remove( 'visible' );
+  document.getElementById( 'crook-logo'   ).classList.remove( 'visible' );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1773,12 +3275,17 @@ function animate() {
 
   hexUniforms[ 'time'  ].value = now;
   hexUniforms[ 'delta' ].value = delta;
+  logoUniforms[ 'time' ].value = now;
 
   gpuCompute.compute();
 
   hexUniforms[ 'texturePosition' ].value =
     gpuCompute.getCurrentRenderTarget( positionVariable ).texture;
   hexUniforms[ 'textureVelocity' ].value =
+    gpuCompute.getCurrentRenderTarget( velocityVariable ).texture;
+  logoUniforms[ 'texturePosition' ].value =
+    gpuCompute.getCurrentRenderTarget( positionVariable ).texture;
+  logoUniforms[ 'textureVelocity' ].value =
     gpuCompute.getCurrentRenderTarget( velocityVariable ).texture;
 
   // Throttled GPU→CPU readback for tooltip hit-testing (~10 fps is plenty)
@@ -1877,6 +3384,35 @@ function animate() {
           bucketCentroidsWorld[ b ].set( sums[ b ].x / sums[ b ].n, sums[ b ].y / sums[ b ].n );
       }
     }
+
+    // Recompute secondary filter centroids from primary-group boids only
+    if ( selectedSubgroup !== null && selectedSecondaryMode !== null ) {
+      const primMode = selectedSubgroup.mode;
+      const primId   = selectedSubgroup.id;
+      const sMd      = selectedSecondaryMode;
+      const primIds  = [ null, companySectorIds, companyStageIds, companyBucketIds, companyNeighborhoodIds ][ primMode ];
+      const secIds   = [ null, companySectorIds, companyStageIds, companyBucketIds, companyNeighborhoodIds ][ sMd ];
+      const secCents = [ null, secondarySectorCentroids, secondaryStageCentroids, secondaryBucketCentroids, secondaryNeighborhoodCentroids ][ sMd ];
+      const secCount = [ 0, SECTOR_COUNT, STAGE_COUNT, BUCKET_COUNT, NEIGHBORHOOD_COUNT ][ sMd ];
+      if ( primIds && secIds && secCents ) {
+        const sums = Array.from( { length: secCount }, () => ( { x: 0, y: 0, n: 0 } ) );
+        const hasBoids = new Array( secCount ).fill( false );
+        for ( let i = 0; i < companyData.length; i++ ) {
+          if ( primIds[ i ] !== primId ) continue;
+          const sid = secIds[ i ];
+          if ( sid < 0 || sid >= secCount ) continue;
+          sums[ sid ].x += lastPosPixels[ i * 4 ];
+          sums[ sid ].y += lastPosPixels[ i * 4 + 1 ];
+          sums[ sid ].n++;
+          hasBoids[ sid ] = true;
+        }
+        secondaryGroupHasBoids = hasBoids;
+        for ( let g = 0; g < secCount; g++ ) {
+          if ( sums[ g ].n > 0 )
+            secCents[ g ].set( sums[ g ].x / sums[ g ].n, sums[ g ].y / sums[ g ].n );
+        }
+      }
+    }
   }
 
   // Colour blend ramps + cluster size ramp + label positioning (every frame)
@@ -1889,23 +3425,80 @@ function animate() {
   stageBlend         += ( stageBlendTarget        - stageBlend         ) * Math.min( 1.0, delta * 2.0 );
   neighborhoodBlend  += ( neighborhoodBlendTarget - neighborhoodBlend  ) * Math.min( 1.0, delta * 2.0 );
   const clusterScaleTarget = ( currentState > APP_STATE.UTAH_MAP ) ? 1.0 : 0.0;
+  logoBlendTarget = isLogoFilterState( currentState ) ? 1.0 : 0.0;
   clusterScale += ( clusterScaleTarget - clusterScale ) * Math.min( 1.0, delta * 2.0 );
+  logoBlend += ( logoBlendTarget - logoBlend ) * Math.min( 1.0, delta * 3.0 );
   hexUniforms[ 'sectorBlend'        ].value = sectorBlend;
   hexUniforms[ 'bucketBlend'        ].value = bucketBlend;
   hexUniforms[ 'stageBlend'         ].value = stageBlend;
   hexUniforms[ 'neighborhoodBlend'  ].value = neighborhoodBlend;
   hexUniforms[ 'clusterScale'       ].value = clusterScale;
+  logoUniforms[ 'clusterScale'      ].value = clusterScale;
+  logoUniforms[ 'logoBlend'         ].value = logoBlend;
+  const selGid  = selectedSubgroup ? selectedSubgroup.id   : -1.0;
+  const selMode = selectedSubgroup ? selectedSubgroup.mode :  0.0;
+  const selRampTarget = selectedSubgroup ? 1.0 : 0.0;
+  if ( selectionRamp < selRampTarget ) selectionRamp = Math.min( selRampTarget, selectionRamp + delta * 0.5 );
+  else                                 selectionRamp = Math.max( selRampTarget, selectionRamp - delta * 0.5 );
+  velocityUniforms[ 'selectionGroupId' ].value = selGid;
+  velocityUniforms[ 'selectionMode'    ].value = selMode;
+  velocityUniforms[ 'selectionRamp'    ].value = selectionRamp;
+  hexUniforms[ 'selectionGroupId'      ].value = selGid;
+  hexUniforms[ 'selectionMode'         ].value = selMode;
+  hexUniforms[ 'selectionRamp'         ].value = selectionRamp;
+  logoUniforms[ 'selectionGroupId'     ].value = selGid;
+  logoUniforms[ 'selectionMode'        ].value = selMode;
+  logoUniforms[ 'selectionRamp'        ].value = selectionRamp;
+
+  const secGid  = selectedSecondarySubgroup ? selectedSecondarySubgroup.id   : -1.0;
+  const secMode = selectedSecondarySubgroup ? selectedSecondarySubgroup.mode :  0.0;
+  const secRampTarget = selectedSecondarySubgroup ? 1.0 : 0.0;
+  if ( secondaryRamp < secRampTarget ) secondaryRamp = Math.min( secRampTarget, secondaryRamp + delta * 0.5 );
+  else                                 secondaryRamp = Math.max( secRampTarget, secondaryRamp - delta * 0.5 );
+  velocityUniforms[ 'secondaryGroupId' ].value = secGid;
+  velocityUniforms[ 'secondaryMode'    ].value = secMode;
+  velocityUniforms[ 'secondaryRamp'    ].value = secondaryRamp;
+  hexUniforms[ 'secondaryGroupId'      ].value = secGid;
+  hexUniforms[ 'secondaryMode'         ].value = secMode;
+  hexUniforms[ 'secondaryRamp'         ].value = secondaryRamp;
+  logoUniforms[ 'secondaryGroupId'     ].value = secGid;
+  logoUniforms[ 'secondaryMode'        ].value = secMode;
+  logoUniforms[ 'secondaryRamp'        ].value = secondaryRamp;
+
+  const secColorTarget = selectedSecondaryMode !== null ? 1.0 : 0.0;
+  secondaryColorBlend += ( secColorTarget - secondaryColorBlend ) * Math.min( 1.0, delta * 0.5 );
+  hexUniforms[ 'secActiveMode' ].value = selectedSecondaryMode !== null ? selectedSecondaryMode : 0.0;
+  hexUniforms[ 'secColorBlend' ].value = secondaryColorBlend;
+
+  // Helper: update and project a secondary label, or hide it
+  function _updateSecLabel( el, idx, posArr, velArr, centArr, allPos ) {
+    if ( secondaryGroupHasBoids[ idx ] ) {
+      el.dataset.filterSource = 'secondary';
+      updateLabelPhysics( posArr[ idx ], velArr[ idx ], centArr[ idx ], allPos, delta );
+      _tmpV3.set( posArr[ idx ].x, posArr[ idx ].y, 0 ).project( camera );
+      el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
+      el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
+      el.classList.add( 'visible' );
+    } else {
+      delete el.dataset.filterSource;
+      el.classList.remove( 'visible' );
+    }
+  }
 
   for ( let n = 0; n < neighborhoodLabelEls.length; n++ ) {
     const el = neighborhoodLabelEls[ n ];
     if ( currentState === APP_STATE.UTAH_SPRINGS ) {
+      el.dataset.filterSource = 'primary';
       updateLabelPhysics( neighborhoodLabelPos[ n ], neighborhoodLabelVel[ n ],
                           neighborhoodCentroidsWorld[ n ], neighborhoodLabelPos, delta );
       _tmpV3.set( neighborhoodLabelPos[ n ].x, neighborhoodLabelPos[ n ].y, 0 ).project( camera );
       el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
       el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
       el.classList.add( 'visible' );
+    } else if ( selectedSecondaryMode === 4 && selectedSubgroup !== null ) {
+      _updateSecLabel( el, n, secondaryNeighborhoodLabelPos, secondaryNeighborhoodLabelVel, secondaryNeighborhoodCentroids, secondaryNeighborhoodLabelPos );
     } else {
+      delete el.dataset.filterSource;
       el.classList.remove( 'visible' );
     }
   }
@@ -1913,13 +3506,17 @@ function animate() {
   for ( let s = 0; s < sectorLabelEls.length; s++ ) {
     const el = sectorLabelEls[ s ];
     if ( currentState === APP_STATE.SECTOR ) {
+      el.dataset.filterSource = 'primary';
       updateLabelPhysics( sectorLabelPos[ s ], sectorLabelVel[ s ],
                           sectorCentroidsWorld[ s ], sectorLabelPos, delta );
       _tmpV3.set( sectorLabelPos[ s ].x, sectorLabelPos[ s ].y, 0 ).project( camera );
       el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
       el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
       el.classList.add( 'visible' );
+    } else if ( selectedSecondaryMode === 1 && selectedSubgroup !== null ) {
+      _updateSecLabel( el, s, secondarySectorLabelPos, secondarySectorLabelVel, secondarySectorCentroids, secondarySectorLabelPos );
     } else {
+      delete el.dataset.filterSource;
       el.classList.remove( 'visible' );
     }
   }
@@ -1927,13 +3524,17 @@ function animate() {
   for ( let b = 0; b < bucketLabelEls.length; b++ ) {
     const el = bucketLabelEls[ b ];
     if ( currentState === APP_STATE.COMPANY_SIZE ) {
+      el.dataset.filterSource = 'primary';
       updateLabelPhysics( bucketLabelPos[ b ], bucketLabelVel[ b ],
                           bucketCentroidsWorld[ b ], bucketLabelPos, delta );
       _tmpV3.set( bucketLabelPos[ b ].x, bucketLabelPos[ b ].y, 0 ).project( camera );
       el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
       el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
       el.classList.add( 'visible' );
+    } else if ( selectedSecondaryMode === 3 && selectedSubgroup !== null ) {
+      _updateSecLabel( el, b, secondaryBucketLabelPos, secondaryBucketLabelVel, secondaryBucketCentroids, secondaryBucketLabelPos );
     } else {
+      delete el.dataset.filterSource;
       el.classList.remove( 'visible' );
     }
   }
@@ -1941,21 +3542,319 @@ function animate() {
   for ( let s = 0; s < stageLabelEls.length; s++ ) {
     const el = stageLabelEls[ s ];
     if ( currentState === APP_STATE.STAGE ) {
+      el.dataset.filterSource = 'primary';
       updateLabelPhysics( stageLabelPos[ s ], stageLabelVel[ s ],
                           stageCentroidsWorld[ s ], stageLabelPos, delta );
       _tmpV3.set( stageLabelPos[ s ].x, stageLabelPos[ s ].y, 0 ).project( camera );
       el.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
       el.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
       el.classList.add( 'visible' );
+    } else if ( selectedSecondaryMode === 2 && selectedSubgroup !== null ) {
+      _updateSecLabel( el, s, secondaryStageLabelPos, secondaryStageLabelVel, secondaryStageCentroids, secondaryStageLabelPos );
     } else {
+      delete el.dataset.filterSource;
       el.classList.remove( 'visible' );
     }
   }
 
   updateTooltip( mouseClientX, mouseClientY );
 
+  // Keep crook logo pinned to the NE-notch geographic anchor in screen space
+  if ( selectedCompany >= 0 ) {
+    _tmpV3.copy( CROOK_SCENE_POS ).project( camera );
+    const crookEl = document.getElementById( 'crook-logo' );
+    crookEl.style.left = ( ( _tmpV3.x + 1 ) / 2 * window.innerWidth  ) + 'px';
+    crookEl.style.top  = ( ( -_tmpV3.y + 1 ) / 2 * window.innerHeight ) + 'px';
+  }
+
   renderer.render( scene, camera );
 }
+
+// ── Live boid group update after a company edit ───────────────────────────
+function updateBoidGroupings( idx, co ) {
+  const newSectorId = Math.max( 0, SECTORS.indexOf( co.sector ) );
+  const newBucketId = Math.max( 0, BUCKETS.indexOf( co.employees ) );
+  const newStageId  = Math.max( 0, STAGES.indexOf( co.stage ) );
+  const newNeighId  = Math.max( 0, NEIGHBORHOODS.findIndex( n => n.name === co.neighborhood ) );
+
+  companySectorIds[ idx ]       = newSectorId;
+  companyBucketIds[ idx ]       = newBucketId;
+  companyStageIds[ idx ]        = newStageId;
+  companyNeighborhoodIds[ idx ] = newNeighId;
+
+  const base = idx * 4;
+
+  const secTex = velocityUniforms[ 'textureSector' ].value;
+  const secCol = SECTOR_COLORS[ newSectorId ];
+  secTex.image.data[ base ]     = secCol[ 0 ];
+  secTex.image.data[ base + 1 ] = secCol[ 1 ];
+  secTex.image.data[ base + 2 ] = secCol[ 2 ];
+  secTex.image.data[ base + 3 ] = newSectorId;
+  secTex.needsUpdate = true;
+
+  const bktTex = velocityUniforms[ 'textureBucket' ].value;
+  const bktCol = BUCKET_COLORS[ newBucketId ];
+  bktTex.image.data[ base ]     = bktCol[ 0 ];
+  bktTex.image.data[ base + 1 ] = bktCol[ 1 ];
+  bktTex.image.data[ base + 2 ] = bktCol[ 2 ];
+  bktTex.image.data[ base + 3 ] = newBucketId;
+  bktTex.needsUpdate = true;
+
+  const stgTex = velocityUniforms[ 'textureStage' ].value;
+  const stgCol = STAGE_COLORS[ newStageId ];
+  stgTex.image.data[ base ]     = stgCol[ 0 ];
+  stgTex.image.data[ base + 1 ] = stgCol[ 1 ];
+  stgTex.image.data[ base + 2 ] = stgCol[ 2 ];
+  stgTex.image.data[ base + 3 ] = newStageId;
+  stgTex.needsUpdate = true;
+
+  const nbrTex = velocityUniforms[ 'textureNeighborhood' ].value;
+  const nbrCol = NEIGHBORHOOD_COLORS[ newNeighId ];
+  nbrTex.image.data[ base ]     = nbrCol[ 0 ];
+  nbrTex.image.data[ base + 1 ] = nbrCol[ 1 ];
+  nbrTex.image.data[ base + 2 ] = nbrCol[ 2 ];
+  nbrTex.image.data[ base + 3 ] = newNeighId;
+  nbrTex.needsUpdate = true;
+}
+
+// ── Edit / verification modal ─────────────────────────────────────────────
+const EMAILJS_SERVICE_ID  = 'service_v5an306';
+const EMAILJS_TEMPLATE_ID = 'template_ehmx2vb';
+const EMAILJS_PUBLIC_KEY  = 'AMl9T_tMsclMN1sD9';
+
+emailjs.init( { publicKey: EMAILJS_PUBLIC_KEY } );
+
+let _pendingCode  = '';
+let _pendingEmail = '';
+
+function openEditModal( idx ) {
+  const co = companyData[ idx ];
+  if ( !co || !co.emailDomain ) return;
+
+  document.getElementById( 'email-domain-display'  ).textContent      = '@' + co.emailDomain;
+  document.getElementById( 'email-prefix-input'    ).value            = '';
+  document.getElementById( 'step1-error'           ).style.display    = 'none';
+  document.getElementById( 'send-code-btn'         ).disabled         = false;
+  document.getElementById( 'send-code-btn'         ).textContent      = 'Send Verification Code';
+  document.getElementById( 'modal-step-1'          ).style.display    = '';
+  document.getElementById( 'modal-step-2'          ).style.display    = 'none';
+  document.getElementById( 'modal-step-3'          ).style.display    = 'none';
+  document.getElementById( 'edit-modal-overlay'    ).classList.add( 'visible' );
+  setTimeout( () => document.getElementById( 'email-prefix-input' ).focus(), 80 );
+}
+
+function closeEditModal() {
+  document.getElementById( 'edit-modal-overlay' ).classList.remove( 'visible' );
+  _pendingCode  = '';
+  _pendingEmail = '';
+}
+
+async function sendVerificationCode() {
+  const co     = companyData[ selectedCompany ];
+  const prefix = document.getElementById( 'email-prefix-input' ).value.trim();
+  const errEl  = document.getElementById( 'step1-error' );
+
+  if ( !prefix ) {
+    errEl.textContent    = 'Please enter your email username.';
+    errEl.style.display  = 'block';
+    return;
+  }
+
+  const btn        = document.getElementById( 'send-code-btn' );
+  btn.disabled     = true;
+  btn.textContent  = 'Sending…';
+  errEl.style.display = 'none';
+
+  _pendingEmail = `${prefix}@${co.emailDomain}`;
+  _pendingCode  = String( Math.floor( 100000 + Math.random() * 900000 ) );
+
+  const tokenPayload = JSON.stringify( {
+    code:    _pendingCode,
+    expires: Date.now() + 10 * 60 * 1000,
+    email:   _pendingEmail,
+  } );
+
+  try {
+    const patchRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/companies?id=eq.${co.id}`,
+      {
+        method:  'PATCH',
+        headers: {
+          'apikey':        SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type':  'application/json',
+          'Prefer':        'return=minimal',
+        },
+        body: JSON.stringify( { edit_tokens: tokenPayload } ),
+      }
+    );
+    if ( !patchRes.ok ) throw new Error( `Supabase ${patchRes.status}: check RLS policies allow anon UPDATE` );
+  } catch ( e ) {
+    errEl.textContent   = e.message;
+    errEl.style.display = 'block';
+    btn.disabled        = false;
+    btn.textContent     = 'Send Verification Code';
+    return;
+  }
+
+  try {
+    await emailjs.send( EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      to_email:          _pendingEmail,
+      company_name:      co.startup_name,
+      verification_code: _pendingCode,
+    } );
+  } catch ( e ) {
+    errEl.textContent   = 'Email failed to send. Check EmailJS template "To Email" is set to {{to_email}}.';
+    errEl.style.display = 'block';
+    btn.disabled        = false;
+    btn.textContent     = 'Send Verification Code';
+    return;
+  }
+
+  document.getElementById( 'step2-desc'   ).textContent = `We sent a 6-digit code to ${_pendingEmail}.`;
+  document.getElementById( 'code-input'   ).value       = '';
+  document.getElementById( 'step2-error'  ).style.display = 'none';
+  document.getElementById( 'verify-code-btn' ).disabled  = false;
+  document.getElementById( 'verify-code-btn' ).textContent = 'Verify Code';
+  document.getElementById( 'modal-step-1' ).style.display  = 'none';
+  document.getElementById( 'modal-step-2' ).style.display  = '';
+  setTimeout( () => document.getElementById( 'code-input' ).focus(), 80 );
+}
+
+async function verifyCode() {
+  const entered = document.getElementById( 'code-input' ).value.trim();
+  const errEl   = document.getElementById( 'step2-error' );
+
+  if ( entered.length !== 6 ) {
+    errEl.textContent   = 'Please enter the full 6-digit code.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn       = document.getElementById( 'verify-code-btn' );
+  btn.disabled    = true;
+  btn.textContent = 'Verifying…';
+  errEl.style.display = 'none';
+
+  const co = companyData[ selectedCompany ];
+
+  try {
+    const res  = await fetch(
+      `${SUPABASE_URL}/rest/v1/companies?id=eq.${co.id}&select=edit_tokens`,
+      { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    const rows      = await res.json();
+    const tokenData = JSON.parse( rows[0]?.edit_tokens || 'null' );
+
+    if ( !tokenData )                   throw new Error( 'No token found — request a new code.' );
+    if ( Date.now() > tokenData.expires ) throw new Error( 'Code expired — request a new code.' );
+    if ( entered !== tokenData.code )   throw new Error( 'Incorrect code. Please try again.' );
+  } catch ( e ) {
+    errEl.textContent   = e.message;
+    errEl.style.display = 'block';
+    btn.disabled        = false;
+    btn.textContent     = 'Verify Code';
+    return;
+  }
+
+  document.getElementById( 'edit-name'         ).value = co.startup_name;
+  document.getElementById( 'edit-sector'       ).value = co.sector;
+  document.getElementById( 'edit-stage'        ).value = co.stage;
+  document.getElementById( 'edit-employees'    ).value = co.employees;
+  document.getElementById( 'edit-neighborhood' ).value = co.neighborhood;
+  document.getElementById( 'edit-description'  ).value = co.description;
+  document.getElementById( 'step3-error'       ).style.display = 'none';
+  document.getElementById( 'step3-success'     ).style.display = 'none';
+  document.getElementById( 'save-edit-btn'     ).disabled      = false;
+  document.getElementById( 'save-edit-btn'     ).textContent   = 'Save Changes';
+  document.getElementById( 'modal-step-2'      ).style.display = 'none';
+  document.getElementById( 'modal-step-3'      ).style.display = '';
+}
+
+async function saveCompanyEdit() {
+  const co    = companyData[ selectedCompany ];
+  const errEl = document.getElementById( 'step3-error' );
+  const sucEl = document.getElementById( 'step3-success' );
+  const btn   = document.getElementById( 'save-edit-btn' );
+
+  btn.disabled    = true;
+  btn.textContent = 'Saving…';
+  errEl.style.display = 'none';
+  sucEl.style.display = 'none';
+
+  const updates = {
+    startup_name: document.getElementById( 'edit-name'         ).value.trim(),
+    sector:       document.getElementById( 'edit-sector'       ).value,
+    stage:        document.getElementById( 'edit-stage'        ).value,
+    employees:    document.getElementById( 'edit-employees'    ).value,
+    neighborhood: document.getElementById( 'edit-neighborhood' ).value,
+    description:  document.getElementById( 'edit-description'  ).value.trim(),
+    edit_tokens:  null,
+  };
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/companies?id=eq.${co.id}`,
+      {
+        method:  'PATCH',
+        headers: {
+          'apikey':        SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type':  'application/json',
+          'Prefer':        'return=minimal',
+        },
+        body: JSON.stringify( updates ),
+      }
+    );
+    if ( !res.ok ) throw new Error( `Save failed (${res.status})` );
+  } catch ( e ) {
+    errEl.textContent   = e.message;
+    errEl.style.display = 'block';
+    btn.disabled        = false;
+    btn.textContent     = 'Save Changes';
+    return;
+  }
+
+  // Reflect changes in local data so card and boid groupings update instantly
+  Object.assign( co, {
+    startup_name: updates.startup_name,
+    sector:       updates.sector,
+    stage:        updates.stage,
+    employees:    updates.employees,
+    neighborhood: updates.neighborhood,
+    description:  updates.description,
+  } );
+  updateBoidGroupings( selectedCompany, co );
+  showCompanyCard( selectedCompany );
+
+  sucEl.textContent   = 'Changes saved!';
+  sucEl.style.display = 'block';
+  btn.disabled        = false;
+  btn.textContent     = 'Save Changes';
+  setTimeout( closeEditModal, 1400 );
+}
+
+// Wire up listeners
+document.getElementById( 'modal-close-btn'  ).addEventListener( 'click', closeEditModal );
+document.getElementById( 'edit-modal-overlay' ).addEventListener( 'click', e => {
+  if ( e.target === document.getElementById( 'edit-modal-overlay' ) ) closeEditModal();
+} );
+document.getElementById( 'send-code-btn'    ).addEventListener( 'click', sendVerificationCode );
+document.getElementById( 'verify-code-btn'  ).addEventListener( 'click', verifyCode );
+document.getElementById( 'save-edit-btn'    ).addEventListener( 'click', saveCompanyEdit );
+document.getElementById( 'resend-code-btn'  ).addEventListener( 'click', () => {
+  document.getElementById( 'modal-step-2' ).style.display = 'none';
+  document.getElementById( 'modal-step-1' ).style.display = '';
+  const btn = document.getElementById( 'send-code-btn' );
+  btn.disabled    = false;
+  btn.textContent = 'Send Verification Code';
+} );
+document.getElementById( 'card-edit-btn'    ).addEventListener( 'click', () => {
+  if ( selectedCompany >= 0 ) openEditModal( selectedCompany );
+} );
+document.getElementById( 'code-input'       ).addEventListener( 'keydown', e => {
+  if ( e.key === 'Enter' ) verifyCode();
+} );
 </script>
 </body>
 </html>

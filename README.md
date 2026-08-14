@@ -17,9 +17,7 @@ The visualization uses a GPU-powered boids simulation in Three.js. Each boid fol
 - **Filters:** regroup companies by location, sector, headcount, or funding stage.
 - **Company cards:** open a company node for its profile and external links.
 
-## Hackathon context
-
-GOED was a bounty track at [AI Builder Day](https://www.nucleusutah.org/events-collection), presented by JustBuild and the Startup State Initiative with UVU Applied AI Lab and HITLAB. The published event listing describes bounty presentations at 2 p.m. on June 17, 2026, followed by a 24-hour build window before judging.
+GOED made a bounty for AI Builder Day where we had to create a map of Utah companies.
 
 ## Run locally
 

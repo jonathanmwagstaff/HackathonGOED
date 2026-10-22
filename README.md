@@ -1,27 +1,21 @@
-# GOED: Utah Startup Ecosystem Swarm
+# Utah Startup Map
 
-An interactive way to explore Utah's startup ecosystem, built for the Governor's Office of Economic Development (GOED) bounty at AI Builder Day 2026.
-
-![GOED landing view: See the Swarm of Activity in the Utah Startup Ecosystem](assets/goed-swarm-landing.png)
-
-## Why a swarm?
-
-A geographic map answers *where* companies are. This project instead begins with a living, interactive mind map: companies move as a swarm, revealing the density and energy of Utah's startup ecosystem before users drill into location, sector, headcount, or stage.
-
-The visualization uses a GPU-powered boids simulation in Three.js. Each boid follows the classic flocking forces—separation, alignment, and cohesion—while additional forces let the swarm settle into meaningful groups, respond to cursor movement, avoid labels, and transition into a geographic Utah view. Company records become interactive hexagonal nodes, while the remaining boids trace the Utah outline.
+An interactive, static explorer for Utah's startup ecosystem. Companies appear as a GPU-powered swarm that can be explored by location, sector, headcount, and funding stage.
 
 ## Explore
 
-- **Swarm view:** an ambient entry point into the ecosystem.
+- **Swarm view:** an animated overview of Utah's startup ecosystem.
 - **Map view:** companies settle into their approximate Utah locations.
-- **Filters:** regroup companies by location, sector, headcount, or funding stage.
-- **Company cards:** open a company node for its profile and external links.
+- **Filters:** regroup companies by location, sector, headcount, or stage.
+- **Company cards:** open a company node for its profile and links.
 
-GOED made a bounty for AI Builder Day where we had to create a map of Utah companies.
+## Company data
+
+The app loads its 222 company records from [data/companies.json](data/companies.json). The file is a static snapshot exported from the project database. GitHub Pages serves it with the app; visitors can browse and filter records, while updates are made by editing the JSON file in GitHub.
 
 ## Run locally
 
-This is a static site. Serve the repository directory with any local web server:
+Serve the repository directory with any local web server:
 
 ```bash
 python3 -m http.server 3001
@@ -29,6 +23,10 @@ python3 -m http.server 3001
 
 Then open `http://localhost:3001`.
 
+## Deploy
+
+The `.github/workflows/pages.yml` workflow publishes the static site to GitHub Pages when changes reach `main`. In the repository's **Settings → Pages**, set the source to **GitHub Actions**.
+
 ## Built with
 
-Three.js · GPUComputationRenderer · GLSL · Supabase · EmailJS
+Three.js · GPUComputationRenderer · GLSL · GitHub Pages

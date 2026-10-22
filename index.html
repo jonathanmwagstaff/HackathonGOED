@@ -12,8 +12,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-  <title>Hexagon Boids – Utah Formation</title>
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <title>Utah Startup Map</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { overflow: hidden; background: #0a0f1e; }
@@ -378,197 +377,6 @@
     }
     #card-linkedin-link:hover { background: #005f93; }
     #card-linkedin-link svg { display: block; }
-    #card-edit-btn {
-      margin-top: 6px;
-      padding: 9px 0;
-      width: 100%;
-      background: rgba(255,215,0,0.08);
-      border: 1.5px solid rgba(255,215,0,0.35);
-      color: #ffd700;
-      font-size: 0.78rem;
-      font-weight: 700;
-      border-radius: 6px;
-      cursor: pointer;
-      font-family: system-ui, -apple-system, sans-serif;
-      letter-spacing: 0.07em;
-      transition: background 0.15s ease, border-color 0.15s ease;
-      text-transform: uppercase;
-    }
-    #card-edit-btn:hover {
-      background: rgba(255,215,0,0.18);
-      border-color: rgba(255,215,0,0.7);
-    }
-
-    /* ── Edit modal ───────────────────────────────────────────────── */
-    #edit-modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.72);
-      z-index: 200;
-      display: none;
-      align-items: center;
-      justify-content: center;
-    }
-    #edit-modal-overlay.visible { display: flex; }
-    #edit-modal {
-      background: #0d1428;
-      border: 1.5px solid rgba(255,215,0,0.35);
-      border-radius: 14px;
-      padding: 28px 28px 24px;
-      width: 360px;
-      max-width: 92vw;
-      max-height: 88vh;
-      overflow-y: auto;
-      font-family: system-ui, -apple-system, sans-serif;
-      color: #e2e8f0;
-      position: relative;
-      box-shadow: 0 0 80px rgba(0,0,0,0.85), 0 0 30px rgba(255,215,0,0.07);
-    }
-    #edit-modal h3 {
-      color: #ffd700;
-      font-size: 1rem;
-      font-weight: 700;
-      margin: 0 0 6px;
-      padding-right: 28px;
-    }
-    #edit-modal p {
-      color: rgba(226,232,240,0.55);
-      font-size: 0.8rem;
-      margin: 0 0 20px;
-      line-height: 1.5;
-    }
-    .modal-close {
-      position: absolute;
-      top: 12px; right: 14px;
-      background: none;
-      border: none;
-      color: rgba(226,232,240,0.4);
-      font-size: 22px;
-      cursor: pointer;
-      line-height: 1;
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-    .modal-close:hover { color: #e2e8f0; }
-    .modal-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
-    .modal-field label {
-      font-size: 9px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.13em;
-      color: rgba(226,232,240,0.38);
-    }
-    .email-row { display: flex; align-items: stretch; }
-    .email-row input {
-      flex: 1;
-      min-width: 0;
-      background: rgba(255,255,255,0.06);
-      border: 1.5px solid rgba(255,255,255,0.15);
-      border-right: none;
-      border-radius: 6px 0 0 6px;
-      color: #e2e8f0;
-      font-size: 0.88rem;
-      padding: 10px 12px;
-      font-family: system-ui, -apple-system, sans-serif;
-      outline: none;
-    }
-    .email-row input:focus { border-color: rgba(255,215,0,0.5); }
-    .email-domain-suffix {
-      background: rgba(255,215,0,0.07);
-      border: 1.5px solid rgba(255,215,0,0.25);
-      border-radius: 0 6px 6px 0;
-      color: rgba(255,215,0,0.75);
-      font-size: 0.82rem;
-      font-weight: 600;
-      padding: 10px 12px;
-      white-space: nowrap;
-      display: flex;
-      align-items: center;
-    }
-    .modal-input {
-      background: rgba(255,255,255,0.06);
-      border: 1.5px solid rgba(255,255,255,0.15);
-      border-radius: 6px;
-      color: #e2e8f0;
-      font-size: 0.88rem;
-      padding: 10px 12px;
-      font-family: system-ui, -apple-system, sans-serif;
-      outline: none;
-      width: 100%;
-      box-sizing: border-box;
-    }
-    .modal-input:focus { border-color: rgba(255,215,0,0.5); }
-    .modal-select {
-      background: rgba(255,255,255,0.06);
-      border: 1.5px solid rgba(255,255,255,0.15);
-      border-radius: 6px;
-      color: #e2e8f0;
-      font-size: 0.88rem;
-      padding: 10px 12px;
-      font-family: system-ui, -apple-system, sans-serif;
-      outline: none;
-      width: 100%;
-      box-sizing: border-box;
-      cursor: pointer;
-      -webkit-appearance: none;
-      appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(226,232,240,0.45)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 12px center;
-      padding-right: 32px;
-    }
-    .modal-select:focus { border-color: rgba(255,215,0,0.5); }
-    .modal-select option { background: #0d1428; color: #e2e8f0; }
-    .modal-textarea {
-      background: rgba(255,255,255,0.06);
-      border: 1.5px solid rgba(255,255,255,0.15);
-      border-radius: 6px;
-      color: #e2e8f0;
-      font-size: 0.85rem;
-      padding: 10px 12px;
-      font-family: system-ui, -apple-system, sans-serif;
-      outline: none;
-      width: 100%;
-      box-sizing: border-box;
-      resize: vertical;
-      min-height: 72px;
-      line-height: 1.5;
-    }
-    .modal-textarea:focus { border-color: rgba(255,215,0,0.5); }
-    .modal-btn {
-      width: 100%;
-      padding: 12px;
-      background: linear-gradient(135deg, #b8860b, #ffd700);
-      color: #0a0f1e;
-      border: none;
-      border-radius: 8px;
-      font-size: 0.9rem;
-      font-weight: 700;
-      cursor: pointer;
-      font-family: system-ui, -apple-system, sans-serif;
-      letter-spacing: 0.05em;
-      transition: opacity 0.15s ease;
-      margin-top: 4px;
-    }
-    .modal-btn:hover { opacity: 0.88; }
-    .modal-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    .modal-error   { color: #ff6b6b; font-size: 0.78rem; margin-top: 10px; display: none; }
-    .modal-success { color: #44ff88; font-size: 0.78rem; margin-top: 10px; display: none; }
-    .code-input { text-align: center; letter-spacing: 0.45em; font-size: 1.8rem; font-weight: 700; }
-    .modal-link-btn {
-      background: none;
-      border: none;
-      color: rgba(226,232,240,0.4);
-      font-size: 0.78rem;
-      cursor: pointer;
-      font-family: system-ui, sans-serif;
-      margin-top: 10px;
-      display: block;
-      width: 100%;
-      text-align: center;
-      padding: 4px;
-    }
-    .modal-link-btn:hover { color: rgba(226,232,240,0.75); }
   </style>
 </head>
 <body>
@@ -634,112 +442,7 @@
       </svg>
     </a>
   </div>
-  <button id="card-edit-btn" style="display:none">Update / Edit</button>
-</div>
-<!-- ── Edit / verification modal ───────────────────────────────────────── -->
-<div id="edit-modal-overlay">
-  <div id="edit-modal">
-    <button class="modal-close" id="modal-close-btn">&times;</button>
-
-    <!-- Step 1: email entry -->
-    <div id="modal-step-1">
-      <h3>Update Company Info</h3>
-      <p>Enter your work email to receive a verification code.</p>
-      <div class="modal-field">
-        <label>Company Email</label>
-        <div class="email-row">
-          <input type="text" id="email-prefix-input" placeholder="you" autocomplete="off" spellcheck="false">
-          <span class="email-domain-suffix" id="email-domain-display">@company.com</span>
-        </div>
-      </div>
-      <button class="modal-btn" id="send-code-btn">Send Verification Code</button>
-      <div class="modal-error" id="step1-error"></div>
-    </div>
-
-    <!-- Step 2: code entry -->
-    <div id="modal-step-2" style="display:none">
-      <h3>Check Your Inbox</h3>
-      <p id="step2-desc">We sent a 6-digit code to your email.</p>
-      <div class="modal-field">
-        <label>Verification Code</label>
-        <input type="text" class="modal-input code-input" id="code-input" maxlength="6" placeholder="000000" autocomplete="off">
-      </div>
-      <button class="modal-btn" id="verify-code-btn">Verify Code</button>
-      <div class="modal-error" id="step2-error"></div>
-      <button class="modal-link-btn" id="resend-code-btn">Resend code</button>
-    </div>
-
-    <!-- Step 3: edit form -->
-    <div id="modal-step-3" style="display:none">
-      <h3>Update Company Info</h3>
-      <div class="modal-field">
-        <label>Company Name</label>
-        <input type="text" class="modal-input" id="edit-name" autocomplete="off">
-      </div>
-      <div class="modal-field">
-        <label>Sector</label>
-        <select class="modal-select" id="edit-sector">
-          <option value="">— Select —</option>
-          <option>B2B Software</option>
-          <option>Security</option>
-          <option>FinTech</option>
-          <option>Energy</option>
-          <option>Bio/Medical Tech</option>
-          <option>Consumer</option>
-          <option>Marketplaces</option>
-        </select>
-      </div>
-      <div class="modal-field">
-        <label>Stage</label>
-        <select class="modal-select" id="edit-stage">
-          <option value="">— Select —</option>
-          <option>Pre-Seed</option>
-          <option>Seed</option>
-          <option>Series A</option>
-          <option>Series B</option>
-          <option>Series C</option>
-          <option>Series D+</option>
-          <option>Growth</option>
-          <option>IPO</option>
-        </select>
-      </div>
-      <div class="modal-field">
-        <label>Headcount</label>
-        <select class="modal-select" id="edit-employees">
-          <option value="">— Select —</option>
-          <option>2-10</option>
-          <option>11-50</option>
-          <option>51-200</option>
-          <option>201-500</option>
-          <option>501-1K</option>
-          <option>1K-5K</option>
-        </select>
-      </div>
-      <div class="modal-field">
-        <label>Location</label>
-        <select class="modal-select" id="edit-neighborhood">
-          <option value="">— Select —</option>
-          <option>Salt Lake City</option>
-          <option>SL County South</option>
-          <option>Point of Mountain</option>
-          <option>Utah County</option>
-          <option>Park City</option>
-          <option>Ogden</option>
-          <option>Davis County</option>
-          <option>St. George</option>
-        </select>
-      </div>
-      <div class="modal-field">
-        <label>Description</label>
-        <textarea class="modal-textarea" id="edit-description"></textarea>
-      </div>
-      <button class="modal-btn" id="save-edit-btn">Save Changes</button>
-      <div class="modal-error"   id="step3-error"></div>
-      <div class="modal-success" id="step3-success"></div>
-    </div>
   </div>
-</div>
-
 <div id="attr">
   <a href="attribution.html" target="_blank">Attribution</a>
 </div>
@@ -1882,31 +1585,18 @@ const neighborhoodWorldPos = NEIGHBORHOODS.map( n => {
 } );
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Supabase – company locations
-// ─────────────────────────────────────────────────────────────────────────────
-const SUPABASE_URL      = 'https://lprekbijqpbczqtlyvko.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_nX4-QRSQZyU3ObYf06Rwdg_4yNhqrpk';
-
+// Company records are published with the site as a static JSON file.
 async function fetchCompanies() {
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/companies?select=id,latitude,longitude,startup_name,logo_url,sector,employees,stage,neighborhood,description,email_domain,website,linkedin`,
-      {
-        headers: {
-          'apikey':        SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-      }
-    );
+    const res = await fetch( './data/companies.json' );
     if ( !res.ok ) {
-      console.warn( 'Supabase returned', res.status, '– running outline-only mode' );
+      console.warn( 'Company data returned', res.status, '– running outline-only mode' );
       return [];
     }
     const rows = await res.json();
     return rows.filter( r => r.latitude != null && r.longitude != null );
   } catch ( e ) {
-    console.warn( 'Supabase fetch failed – running outline-only mode', e );
+    console.warn( 'Company data could not be loaded – running outline-only mode', e );
     return [];
   }
 }
@@ -2261,7 +1951,7 @@ async function init() {
   container.appendChild( renderer.domElement );
 
   const companies = await fetchCompanies();
-  console.log( `Loaded ${companies.length} companies from Supabase` );
+  console.log( `Loaded ${companies.length} companies from local data` );
 
   companyData = companies.slice( 0, BIRDS ).map( c => ( {
     id:           c.id,
@@ -2272,7 +1962,6 @@ async function init() {
     stage:        c.stage        || '',
     neighborhood: c.neighborhood || '',
     description:  c.description  || '',
-    emailDomain:  c.email_domain || '',
     website:      c.website      || '',
     linkedin:     c.linkedin     || '',
   } ) );
@@ -3331,9 +3020,6 @@ function showCompanyCard( idx ) {
 
   linksDiv.classList.toggle( 'visible', hasWebsite || hasLinkedin );
 
-  const editBtn = document.getElementById( 'card-edit-btn' );
-  editBtn.style.display = co.emailDomain ? '' : 'none';
-
   document.getElementById( 'company-card' ).classList.add( 'visible' );
 }
 
@@ -3705,291 +3391,7 @@ function animate() {
   renderer.render( scene, camera );
 }
 
-// ── Live boid group update after a company edit ───────────────────────────
-function updateBoidGroupings( idx, co ) {
-  const newSectorId = Math.max( 0, SECTORS.indexOf( co.sector ) );
-  const newBucketId = Math.max( 0, BUCKETS.indexOf( co.employees ) );
-  const newStageId  = Math.max( 0, STAGES.indexOf( co.stage ) );
-  const newNeighId  = Math.max( 0, NEIGHBORHOODS.findIndex( n => n.name === co.neighborhood ) );
-
-  companySectorIds[ idx ]       = newSectorId;
-  companyBucketIds[ idx ]       = newBucketId;
-  companyStageIds[ idx ]        = newStageId;
-  companyNeighborhoodIds[ idx ] = newNeighId;
-
-  const base = idx * 4;
-
-  const secTex = velocityUniforms[ 'textureSector' ].value;
-  const secCol = SECTOR_COLORS[ newSectorId ];
-  secTex.image.data[ base ]     = secCol[ 0 ];
-  secTex.image.data[ base + 1 ] = secCol[ 1 ];
-  secTex.image.data[ base + 2 ] = secCol[ 2 ];
-  secTex.image.data[ base + 3 ] = newSectorId;
-  secTex.needsUpdate = true;
-
-  const bktTex = velocityUniforms[ 'textureBucket' ].value;
-  const bktCol = BUCKET_COLORS[ newBucketId ];
-  bktTex.image.data[ base ]     = bktCol[ 0 ];
-  bktTex.image.data[ base + 1 ] = bktCol[ 1 ];
-  bktTex.image.data[ base + 2 ] = bktCol[ 2 ];
-  bktTex.image.data[ base + 3 ] = newBucketId;
-  bktTex.needsUpdate = true;
-
-  const stgTex = velocityUniforms[ 'textureStage' ].value;
-  const stgCol = STAGE_COLORS[ newStageId ];
-  stgTex.image.data[ base ]     = stgCol[ 0 ];
-  stgTex.image.data[ base + 1 ] = stgCol[ 1 ];
-  stgTex.image.data[ base + 2 ] = stgCol[ 2 ];
-  stgTex.image.data[ base + 3 ] = newStageId;
-  stgTex.needsUpdate = true;
-
-  const nbrTex = velocityUniforms[ 'textureNeighborhood' ].value;
-  const nbrCol = NEIGHBORHOOD_COLORS[ newNeighId ];
-  nbrTex.image.data[ base ]     = nbrCol[ 0 ];
-  nbrTex.image.data[ base + 1 ] = nbrCol[ 1 ];
-  nbrTex.image.data[ base + 2 ] = nbrCol[ 2 ];
-  nbrTex.image.data[ base + 3 ] = newNeighId;
-  nbrTex.needsUpdate = true;
-}
-
-// ── Edit / verification modal ─────────────────────────────────────────────
-const EMAILJS_SERVICE_ID  = 'service_v5an306';
-const EMAILJS_TEMPLATE_ID = 'template_ehmx2vb';
-const EMAILJS_PUBLIC_KEY  = 'AMl9T_tMsclMN1sD9';
-
-emailjs.init( { publicKey: EMAILJS_PUBLIC_KEY } );
-
-let _pendingCode  = '';
-let _pendingEmail = '';
-
-function openEditModal( idx ) {
-  const co = companyData[ idx ];
-  if ( !co || !co.emailDomain ) return;
-
-  document.getElementById( 'email-domain-display'  ).textContent      = '@' + co.emailDomain;
-  document.getElementById( 'email-prefix-input'    ).value            = '';
-  document.getElementById( 'step1-error'           ).style.display    = 'none';
-  document.getElementById( 'send-code-btn'         ).disabled         = false;
-  document.getElementById( 'send-code-btn'         ).textContent      = 'Send Verification Code';
-  document.getElementById( 'modal-step-1'          ).style.display    = '';
-  document.getElementById( 'modal-step-2'          ).style.display    = 'none';
-  document.getElementById( 'modal-step-3'          ).style.display    = 'none';
-  document.getElementById( 'edit-modal-overlay'    ).classList.add( 'visible' );
-  setTimeout( () => document.getElementById( 'email-prefix-input' ).focus(), 80 );
-}
-
-function closeEditModal() {
-  document.getElementById( 'edit-modal-overlay' ).classList.remove( 'visible' );
-  _pendingCode  = '';
-  _pendingEmail = '';
-}
-
-async function sendVerificationCode() {
-  const co     = companyData[ selectedCompany ];
-  const prefix = document.getElementById( 'email-prefix-input' ).value.trim();
-  const errEl  = document.getElementById( 'step1-error' );
-
-  if ( !prefix ) {
-    errEl.textContent    = 'Please enter your email username.';
-    errEl.style.display  = 'block';
-    return;
-  }
-
-  const btn        = document.getElementById( 'send-code-btn' );
-  btn.disabled     = true;
-  btn.textContent  = 'Sending…';
-  errEl.style.display = 'none';
-
-  _pendingEmail = `${prefix}@${co.emailDomain}`;
-  _pendingCode  = String( Math.floor( 100000 + Math.random() * 900000 ) );
-
-  const tokenPayload = JSON.stringify( {
-    code:    _pendingCode,
-    expires: Date.now() + 10 * 60 * 1000,
-    email:   _pendingEmail,
-  } );
-
-  try {
-    const patchRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/companies?id=eq.${co.id}`,
-      {
-        method:  'PATCH',
-        headers: {
-          'apikey':        SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type':  'application/json',
-          'Prefer':        'return=minimal',
-        },
-        body: JSON.stringify( { edit_tokens: tokenPayload } ),
-      }
-    );
-    if ( !patchRes.ok ) throw new Error( `Supabase ${patchRes.status}: check RLS policies allow anon UPDATE` );
-  } catch ( e ) {
-    errEl.textContent   = e.message;
-    errEl.style.display = 'block';
-    btn.disabled        = false;
-    btn.textContent     = 'Send Verification Code';
-    return;
-  }
-
-  try {
-    await emailjs.send( EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-      to_email:          _pendingEmail,
-      company_name:      co.startup_name,
-      verification_code: _pendingCode,
-    } );
-  } catch ( e ) {
-    errEl.textContent   = 'Email failed to send. Check EmailJS template "To Email" is set to {{to_email}}.';
-    errEl.style.display = 'block';
-    btn.disabled        = false;
-    btn.textContent     = 'Send Verification Code';
-    return;
-  }
-
-  document.getElementById( 'step2-desc'   ).textContent = `We sent a 6-digit code to ${_pendingEmail}.`;
-  document.getElementById( 'code-input'   ).value       = '';
-  document.getElementById( 'step2-error'  ).style.display = 'none';
-  document.getElementById( 'verify-code-btn' ).disabled  = false;
-  document.getElementById( 'verify-code-btn' ).textContent = 'Verify Code';
-  document.getElementById( 'modal-step-1' ).style.display  = 'none';
-  document.getElementById( 'modal-step-2' ).style.display  = '';
-  setTimeout( () => document.getElementById( 'code-input' ).focus(), 80 );
-}
-
-async function verifyCode() {
-  const entered = document.getElementById( 'code-input' ).value.trim();
-  const errEl   = document.getElementById( 'step2-error' );
-
-  if ( entered.length !== 6 ) {
-    errEl.textContent   = 'Please enter the full 6-digit code.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  const btn       = document.getElementById( 'verify-code-btn' );
-  btn.disabled    = true;
-  btn.textContent = 'Verifying…';
-  errEl.style.display = 'none';
-
-  const co = companyData[ selectedCompany ];
-
-  try {
-    const res  = await fetch(
-      `${SUPABASE_URL}/rest/v1/companies?id=eq.${co.id}&select=edit_tokens`,
-      { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
-    );
-    const rows      = await res.json();
-    const tokenData = JSON.parse( rows[0]?.edit_tokens || 'null' );
-
-    if ( !tokenData )                   throw new Error( 'No token found — request a new code.' );
-    if ( Date.now() > tokenData.expires ) throw new Error( 'Code expired — request a new code.' );
-    if ( entered !== tokenData.code )   throw new Error( 'Incorrect code. Please try again.' );
-  } catch ( e ) {
-    errEl.textContent   = e.message;
-    errEl.style.display = 'block';
-    btn.disabled        = false;
-    btn.textContent     = 'Verify Code';
-    return;
-  }
-
-  document.getElementById( 'edit-name'         ).value = co.startup_name;
-  document.getElementById( 'edit-sector'       ).value = co.sector;
-  document.getElementById( 'edit-stage'        ).value = co.stage;
-  document.getElementById( 'edit-employees'    ).value = co.employees;
-  document.getElementById( 'edit-neighborhood' ).value = co.neighborhood;
-  document.getElementById( 'edit-description'  ).value = co.description;
-  document.getElementById( 'step3-error'       ).style.display = 'none';
-  document.getElementById( 'step3-success'     ).style.display = 'none';
-  document.getElementById( 'save-edit-btn'     ).disabled      = false;
-  document.getElementById( 'save-edit-btn'     ).textContent   = 'Save Changes';
-  document.getElementById( 'modal-step-2'      ).style.display = 'none';
-  document.getElementById( 'modal-step-3'      ).style.display = '';
-}
-
-async function saveCompanyEdit() {
-  const co    = companyData[ selectedCompany ];
-  const errEl = document.getElementById( 'step3-error' );
-  const sucEl = document.getElementById( 'step3-success' );
-  const btn   = document.getElementById( 'save-edit-btn' );
-
-  btn.disabled    = true;
-  btn.textContent = 'Saving…';
-  errEl.style.display = 'none';
-  sucEl.style.display = 'none';
-
-  const updates = {
-    startup_name: document.getElementById( 'edit-name'         ).value.trim(),
-    sector:       document.getElementById( 'edit-sector'       ).value,
-    stage:        document.getElementById( 'edit-stage'        ).value,
-    employees:    document.getElementById( 'edit-employees'    ).value,
-    neighborhood: document.getElementById( 'edit-neighborhood' ).value,
-    description:  document.getElementById( 'edit-description'  ).value.trim(),
-    edit_tokens:  null,
-  };
-
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/companies?id=eq.${co.id}`,
-      {
-        method:  'PATCH',
-        headers: {
-          'apikey':        SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type':  'application/json',
-          'Prefer':        'return=minimal',
-        },
-        body: JSON.stringify( updates ),
-      }
-    );
-    if ( !res.ok ) throw new Error( `Save failed (${res.status})` );
-  } catch ( e ) {
-    errEl.textContent   = e.message;
-    errEl.style.display = 'block';
-    btn.disabled        = false;
-    btn.textContent     = 'Save Changes';
-    return;
-  }
-
-  // Reflect changes in local data so card and boid groupings update instantly
-  Object.assign( co, {
-    startup_name: updates.startup_name,
-    sector:       updates.sector,
-    stage:        updates.stage,
-    employees:    updates.employees,
-    neighborhood: updates.neighborhood,
-    description:  updates.description,
-  } );
-  updateBoidGroupings( selectedCompany, co );
-  showCompanyCard( selectedCompany );
-
-  sucEl.textContent   = 'Changes saved!';
-  sucEl.style.display = 'block';
-  btn.disabled        = false;
-  btn.textContent     = 'Save Changes';
-  setTimeout( closeEditModal, 1400 );
-}
-
-// Wire up listeners
-document.getElementById( 'modal-close-btn'  ).addEventListener( 'click', closeEditModal );
-document.getElementById( 'edit-modal-overlay' ).addEventListener( 'click', e => {
-  if ( e.target === document.getElementById( 'edit-modal-overlay' ) ) closeEditModal();
-} );
-document.getElementById( 'send-code-btn'    ).addEventListener( 'click', sendVerificationCode );
-document.getElementById( 'verify-code-btn'  ).addEventListener( 'click', verifyCode );
-document.getElementById( 'save-edit-btn'    ).addEventListener( 'click', saveCompanyEdit );
-document.getElementById( 'resend-code-btn'  ).addEventListener( 'click', () => {
-  document.getElementById( 'modal-step-2' ).style.display = 'none';
-  document.getElementById( 'modal-step-1' ).style.display = '';
-  const btn = document.getElementById( 'send-code-btn' );
-  btn.disabled    = false;
-  btn.textContent = 'Send Verification Code';
-} );
-document.getElementById( 'card-edit-btn'    ).addEventListener( 'click', () => {
-  if ( selectedCompany >= 0 ) openEditModal( selectedCompany );
-} );
-document.getElementById( 'code-input'       ).addEventListener( 'keydown', e => {
-  if ( e.key === 'Enter' ) verifyCode();
-} );
+// shortcut: GitHub Pages cannot persist visitor edits; maintain records in data/companies.json.
 </script>
 </body>
 </html>
